@@ -10,12 +10,13 @@ import (
 )
 
 type Bar struct {
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 }
 
 type Foo struct {
-	Name string `json:"name"`
-	Bar  Bar    `json:"bar"`
+	Id   int    `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+	Bar  Bar    `json:"bar,omitempty"`
 }
 
 func helperTempFile(t *testing.T) string {
@@ -27,16 +28,22 @@ func helperTempFile(t *testing.T) string {
 	return f.Name()
 }
 
-func helperOpenStore(t *testing.T) *Store {
+func helperOpenStoreWithFile(t *testing.T, fileName string) *Store {
 	t.Helper()
-
-	fileName := helperTempFile(t)
 
 	store, err := NewStore(fileName)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return store
+}
+
+func helperOpenStore(t *testing.T) *Store {
+	t.Helper()
+
+	fileName := helperTempFile(t)
+
+	return helperOpenStoreWithFile(t, fileName)
 }
 
 func helperCloseStore(t *testing.T, store *Store) {
@@ -114,7 +121,9 @@ func TestTableInsert(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	val, err := table.QueryOne("$.name", "test")
+	c := Equal("$.name", "test")
+
+	val, err := table.QueryOne(c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,12 +163,16 @@ func TestTableUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = table.QueryOne("$.name", "test-one")
+	c1 := Equal("$.name", "test-one")
+
+	_, err = table.QueryOne(c1)
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal(err)
 	}
 
-	val, err := table.QueryOne("$.name", "test-two")
+	c2 := Equal("$.name", "test-two")
+
+	val, err := table.QueryOne(c2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +241,9 @@ func TestTableSelectNoResults(t *testing.T) {
 
 	table := helperTable[Foo](t, store)
 
-	_, err := table.QueryOne("$.name", "nothing")
+	c := Equal("$.name", "nothing")
+
+	_, err := table.QueryOne(c)
 	if err == nil {
 		t.Fatal("expected error got nil")
 	}
@@ -265,44 +280,138 @@ func TestTableSelectMany(t *testing.T) {
 		}
 	}
 
-	vals, err := table.QueryMany("$.name", "select-many")
+	c := Equal("$.name", "select-many")
+
+	vals, err := table.QueryMany(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(vals) != 2 {
 		t.Errorf("expected 2 got %d", len(vals))
 	}
-	/*
-		var version string
-		err = db.QueryRow("SELECT sqlite_version()").Scan(&version)
-		// t.Fatal(version)
+}
 
-		var country string
-		err = db.QueryRow("select tag->'$.country.name' from foo where tag->>? = 'mattn'", "name").Scan(&country)
+func TestTableInjectValue(t *testing.T) {
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](t, store)
+
+	foo := Foo{
+		Name: "injection",
+		Bar: Bar{
+			Name: "one",
+		},
+	}
+
+	err := table.Insert(foo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = table.QueryOne(Equal("$.name", "injection' OR 1=1 --"))
+	if err == nil {
+		t.Fatal("expected error got nil")
+	}
+
+}
+
+func TestTableInjectField(t *testing.T) {
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](t, store)
+
+	foo := Foo{
+		Name: "injection",
+		Bar: Bar{
+			Name: "one",
+		},
+	}
+
+	err := table.Insert(foo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = table.QueryOne(Equal("$.name' OR 1=1 --", "injection"))
+	if err == nil {
+		t.Fatal("expected error got nil")
+	}
+
+}
+
+func TestTableDelete(t *testing.T) {
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](t, store)
+
+	foo := Foo{
+		Name: "delete",
+		Bar: Bar{
+			Name: "one",
+		},
+	}
+
+	err := table.Insert(foo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := Equal("$.name", "delete")
+
+	err = table.Delete(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = table.QueryOne(c)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal(err)
+	}
+}
+
+func TestTableSelectIn(t *testing.T) {
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](t, store)
+
+	foos := []Foo{
+		{
+			Id:   1,
+			Name: "select-one",
+		},
+		{
+			Id:   2,
+			Name: "select-two",
+		},
+		{
+			Id:   7,
+			Name: "select-seven",
+		},
+		{
+			Id:   8,
+			Name: "select-eight",
+		},
+	}
+
+	for _, f := range foos {
+		err := table.Insert(f)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fmt.Println(country)
+	}
 
-		var tag Tag
-		err = db.QueryRow("select tag from foo where tag->>? = 'mattn'", "name").Scan(&tag)
-		if err != nil {
-			t.Fatal(err)
-		}
+	condition := In("$.id", 1, 2, 3)
 
-		fmt.Println(tag.Name)
-
-		tag.Country.Name = "日本"
-		_, err = db.Exec(`update foo set tag = ? where tag->>? == 'mattn'`, &tag, "name")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = db.QueryRow("select tag->'$.country.name' from foo where tag->>'name' = 'mattn'").Scan(&country)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Println(country)
-
-	*/
+	//_, err := table.QueryMany(condition)
+	vals, err := table.QueryMany(condition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vals) != 2 {
+		t.Errorf("expected 2 got %d", len(vals))
+	}
 }

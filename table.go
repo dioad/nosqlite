@@ -106,10 +106,10 @@ func (n *Table[T]) hasIndex(indexName string) (bool, error) {
 }
 
 // Delete removes one or more items from the table
-func (n *Table[T]) Delete(field, value string) error {
+func (n *Table[T]) Delete(clause Clause) error {
 	tableName := n.getTableName()
-	deleteStatement := fmt.Sprintf("DELETE FROM `%s` WHERE data->>? = ?", tableName)
-	_, err := n.store.db.Exec(deleteStatement, field, value)
+	deleteStatement := fmt.Sprintf("DELETE FROM `%s` WHERE %s", tableName, clause.Clause())
+	_, err := n.store.db.Exec(deleteStatement, clause.Values()...)
 	return err
 }
 
@@ -126,12 +126,13 @@ func (n *Table[T]) Insert(data T) error {
 }
 
 // QueryOne returns a single item from the table
-func (n *Table[T]) QueryOne(field, value string) (*T, error) {
+func (n *Table[T]) QueryOne(clause Clause) (*T, error) {
+	//func (n *Table[T]) QueryOne(field, value string) (*T, error) {
 	var data string
 	//tag->'$.country.name'
 	tableName := n.getTableName()
-	queryStatement := fmt.Sprintf("SELECT data FROM `%s` WHERE data->>? = ?", tableName)
-	row := n.store.db.QueryRow(queryStatement, field, value)
+	queryStatement := fmt.Sprintf("SELECT data FROM `%s` WHERE %s", tableName, clause.Clause())
+	row := n.store.db.QueryRow(queryStatement, clause.Values()...)
 	err := row.Scan(&data)
 	if err != nil {
 		return nil, err
@@ -143,12 +144,12 @@ func (n *Table[T]) QueryOne(field, value string) (*T, error) {
 
 // QueryMany returns multiple items from the table
 // can we use http://doug-martin.github.io/goqu/ for this?
-func (n *Table[T]) QueryMany(field, value string) ([]T, error) {
+func (n *Table[T]) QueryMany(clause Clause) ([]T, error) {
 	var data string
 	var results []T
 	tableName := n.getTableName()
-	queryStatement := fmt.Sprintf("SELECT data FROM %s WHERE data->>? = ?", tableName)
-	rows, err := n.store.db.Query(queryStatement, field, value)
+	queryStatement := fmt.Sprintf("SELECT data FROM `%s` WHERE %s", tableName, clause.Clause())
+	rows, err := n.store.db.Query(queryStatement, clause.Values()...)
 	if err != nil {
 		return nil, err
 	}
