@@ -20,6 +20,13 @@ var (
 	likeOperator               operator = "LIKE"
 )
 
+type combinator string
+
+var (
+	andCombinator combinator = "AND"
+	orCombinator  combinator = "OR"
+)
+
 type number interface {
 	constraints.Integer | constraints.Float
 }
@@ -153,4 +160,41 @@ func (c *betweenCondition[T]) Values() []any {
 
 func Between[T string | number](field string, from, to T) Clause {
 	return &betweenCondition[T]{Field: field, From: from, To: to}
+}
+
+type containsCondition struct {
+	Field      string
+	combinator combinator
+	values     []any
+}
+
+func (c *containsCondition) singleClause() string {
+	return fmt.Sprintf("(EXISTS (SELECT 1 FROM json_each(%s) WHERE value = ?))", jsonField(c.Field))
+}
+
+func (c *containsCondition) Clause() string {
+	if len(c.values) == 1 {
+		return c.singleClause()
+	}
+	clauses := make([]string, len(c.values))
+	for i := range c.values {
+		clauses[i] = c.singleClause()
+	}
+	return fmt.Sprintf("(%s)", strings.Join(clauses, fmt.Sprintf(" %s ", c.combinator)))
+}
+
+func (c *containsCondition) Values() []any {
+	return c.values
+}
+
+func Contains(field string, value any) Clause {
+	return &containsCondition{Field: field, combinator: andCombinator, values: []any{value}}
+}
+
+func ContainsAll(field string, value ...any) Clause {
+	return &containsCondition{Field: field, combinator: andCombinator, values: value}
+}
+
+func ContainsAny(field string, value ...any) Clause {
+	return &containsCondition{Field: field, combinator: orCombinator, values: value}
 }

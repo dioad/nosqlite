@@ -14,9 +14,10 @@ type Bar struct {
 }
 
 type Foo struct {
-	Id   int    `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-	Bar  Bar    `json:"bar,omitempty"`
+	Id   int      `json:"id,omitempty"`
+	Name string   `json:"name,omitempty"`
+	Bar  Bar      `json:"bar,omitempty"`
+	List []string `json:"list,omitempty"`
 }
 
 func helperTempFile(t *testing.T) string {
@@ -413,5 +414,122 @@ func TestTableSelectIn(t *testing.T) {
 	}
 	if len(vals) != 2 {
 		t.Errorf("expected 2 got %d", len(vals))
+	}
+}
+
+func TestTableSelectContainsAll(t *testing.T) {
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](t, store)
+
+	foos := []Foo{
+		{
+			Name: "contains-one",
+			List: []string{"one", "two", "three"},
+		},
+		{
+			Name: "contains-two",
+			List: []string{"three", "four", "five"},
+		},
+		{
+			Name: "contains-three",
+			List: []string{"two", "three", "four"},
+		},
+	}
+
+	for _, f := range foos {
+		err := table.Insert(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	condition := ContainsAll("$.list", "two", "three")
+
+	vals, err := table.QueryMany(condition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vals) != 2 {
+		t.Errorf("expected 2 got %d", len(vals))
+	}
+}
+
+func TestTableSelectContainsAny(t *testing.T) {
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](t, store)
+
+	foos := []Foo{
+		{
+			Name: "contains-one",
+			List: []string{"one", "two", "three"},
+		},
+		{
+			Name: "contains-two",
+			List: []string{"three", "four", "five"},
+		},
+		{
+			Name: "contains-three",
+			List: []string{"two", "three", "four"},
+		},
+	}
+
+	for _, f := range foos {
+		err := table.Insert(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	condition := ContainsAny("$.list", "one", "two", "three")
+
+	vals, err := table.QueryMany(condition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vals) != 3 {
+		t.Errorf("expected 3 got %d", len(vals))
+	}
+}
+
+func TestTableSelectContains(t *testing.T) {
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](t, store)
+
+	foos := []Foo{
+		{
+			Name: "contains-one",
+			List: []string{"one", "two", "three"},
+		},
+		{
+			Name: "contains-two",
+			List: []string{"three", "four", "five"},
+		},
+		{
+			Name: "contains-three",
+			List: []string{"two", "three", "four"},
+		},
+	}
+
+	for _, f := range foos {
+		err := table.Insert(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	condition := Contains("$.list", "one")
+
+	vals, err := table.QueryMany(condition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vals) != 1 {
+		t.Errorf("expected 1 got %d", len(vals))
 	}
 }

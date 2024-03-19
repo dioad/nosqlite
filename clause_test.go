@@ -161,3 +161,33 @@ func TestConditions(t *testing.T) {
 		}
 	}
 }
+
+func TestContains(t *testing.T) {
+	c := Contains("$.list", "one")
+
+	expected := "(EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?))"
+
+	if got := c.Clause(); got != expected {
+		t.Errorf("got = %v, want %v", got, expected)
+	}
+}
+
+func TestContainsAll(t *testing.T) {
+	c := ContainsAll("$.list", "one", "two")
+
+	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?)) AND (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?)))"
+
+	if got := c.Clause(); got != expected {
+		t.Errorf("got = %v, want %v", got, expected)
+	}
+}
+
+func TestContainsAny(t *testing.T) {
+	c := ContainsAny("$.list", "one", "two")
+
+	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?)) OR (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?)))"
+
+	if got := c.Clause(); got != expected {
+		t.Errorf("got = %v, want %v", got, expected)
+	}
+}
