@@ -30,8 +30,11 @@ type number interface {
 	constraints.Integer | constraints.Float
 }
 
+// Clause represents a clause in a query
 type Clause interface {
+	// Clause returns the clause as a string using parameters for values
 	Clause() string
+	// Values returns the values to assign to the parameters in the clause
 	Values() []any
 }
 
@@ -75,10 +78,12 @@ func combine(combinator combinator, clauses ...Clause) Clause {
 	}
 }
 
+// And returns a clause that combines clauses with an AND operator
 func And(clauses ...Clause) Clause {
 	return combine(andCombinator, clauses...)
 }
 
+// Or returns a clause that combines clauses with an OR operator
 func Or(clauses ...Clause) Clause {
 	return combine(orCombinator, clauses...)
 }
@@ -97,30 +102,38 @@ func (c *condition[T]) Values() []any {
 	return []any{fmt.Sprintf("%v", c.Value)}
 }
 
+// Equal returns a clause that checks if a field is equal to a value
 func Equal[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: equalsOperator}
 }
 
+// LessThan returns a clause that checks if a field is less than a value
 func LessThan[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: lessThanOperator}
 }
 
+// GreaterThan returns a clause that checks if a field is greater than a value
 func GreaterThan[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: greaterThanOperator}
 }
 
+// LessThanOrEqual returns a clause that checks if a field is less than or equal to a value
 func LessThanOrEqual[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: lessThanOrEqualOperator}
 }
 
+// GreaterThanOrEqual returns a clause that checks if a field is greater than or equal to a value
 func GreaterThanOrEqual[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: greaterThanOrEqualOperator}
 }
 
+// NotEqual returns a clause that checks if a field is not equal to a value
 func NotEqual[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: notEqualsOperator}
 }
 
+// Like returns a clause that checks if a field is like a value
+// It's up to the user to add the requisite % characters
 func Like(field string, value string) Clause {
 	return &condition[string]{Field: field, Value: value, Operator: likeOperator}
 }
@@ -147,6 +160,7 @@ func (c *inCondition) Values() []any {
 	return c.values
 }
 
+// In returns a clause that checks if a field is in a list of values
 func In(field string, values ...any) Clause {
 	return &inCondition{Field: field, values: values}
 }
@@ -165,6 +179,7 @@ func (c *betweenCondition[T]) Values() []any {
 	return []any{c.From, c.To}
 }
 
+// Between returns a clause that checks if a field is between two values
 func Between[T string | number](field string, from, to T) Clause {
 	return &betweenCondition[T]{Field: field, From: from, To: to}
 }
@@ -194,14 +209,17 @@ func (c *containsCondition) Values() []any {
 	return c.values
 }
 
+// Contains returns a clause that checks if a list field contains a single value
 func Contains(field string, value any) Clause {
 	return &containsCondition{Field: field, combinator: andCombinator, values: []any{value}}
 }
 
+// ContainsAll returns a clause that checks if a list field contains all the values
 func ContainsAll(field string, value ...any) Clause {
 	return &containsCondition{Field: field, combinator: andCombinator, values: value}
 }
 
+// ContainsAny returns a clause that checks if a list field contains any of the values
 func ContainsAny(field string, value ...any) Clause {
 	return &containsCondition{Field: field, combinator: orCombinator, values: value}
 }

@@ -59,6 +59,7 @@ func (n *Table[T]) indexName(fields ...string) string {
 	return constructIndexName(n.getTableName(), fields...)
 }
 
+// CreateTable creates the table if it does not exist
 func (n *Table[T]) CreateTable(ctx context.Context) error {
 	return n.createTableWithName(ctx, n.getTableName())
 }
@@ -69,6 +70,7 @@ func (n *Table[T]) createTableWithName(ctx context.Context, tableName string) er
 	return err
 }
 
+// Count returns the number of items in the table
 func (n *Table[T]) Count(ctx context.Context) (uint64, error) {
 	var c uint64
 	tableName := n.getTableName()
@@ -104,6 +106,7 @@ func (n *Table[T]) hasIndex(ctx context.Context, indexName string) (bool, error)
 	return true, nil
 }
 
+// Delete removes items from the table that match the given clause
 func (n *Table[T]) Delete(ctx context.Context, clause Clause) error {
 	tableName := n.getTableName()
 	deleteStatement := fmt.Sprintf("DELETE FROM `%s` WHERE %s", tableName, clause.Clause())
