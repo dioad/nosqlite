@@ -54,6 +54,7 @@ func (c andClause) Values() []any {
 	return append(valuesOne, c.clauseTwo.Values()...)
 }
 
+// TODO: turn this into AND(clause ...Clause) Clause
 func And(clauseOne, clauseTwo Clause) Clause {
 	return andClause{clauseOne: clauseOne, clauseTwo: clauseTwo}
 }
@@ -72,6 +73,7 @@ func (c orClause) Values() []any {
 	return append(valuesOne, c.clauseTwo.Values()...)
 }
 
+// TODO: turn this into OR(clause ...Clause) Clause
 func Or(clauseOne, clauseTwo Clause) Clause {
 	return orClause{clauseOne: clauseOne, clauseTwo: clauseTwo}
 }

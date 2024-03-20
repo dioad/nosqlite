@@ -1,6 +1,7 @@
 package nosqlite
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"os"
@@ -56,10 +57,10 @@ func helperCloseStore(t *testing.T, store *Store) {
 	}
 }
 
-func helperTable[T any](t *testing.T, store *Store) *Table[T] {
+func helperTable[T any](ctx context.Context, t *testing.T, store *Store) *Table[T] {
 	t.Helper()
 
-	table, err := NewTable[T](store)
+	table, err := NewTable[T](ctx, store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,10 +106,11 @@ func TestJoinEscapedFieldNames(t *testing.T) {
 }
 
 func TestTableInsert(t *testing.T) {
+	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	tag := Foo{
 		Name: "test",
@@ -117,14 +119,14 @@ func TestTableInsert(t *testing.T) {
 		},
 	}
 
-	err := table.Insert(tag)
+	err := table.Insert(ctx, tag)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	c := Equal("$.name", "test")
 
-	val, err := table.QueryOne(c)
+	val, err := table.QueryOne(ctx, c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,10 +137,13 @@ func TestTableInsert(t *testing.T) {
 }
 
 func TestTableUpdate(t *testing.T) {
+
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foo1 := Foo{
 		Name: "test-one",
@@ -154,26 +159,26 @@ func TestTableUpdate(t *testing.T) {
 		},
 	}
 
-	err := table.Insert(foo1)
+	err := table.Insert(ctx, foo1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = table.Update("$.name", "test-one", foo2)
+	err = table.Update(ctx, "$.name", "test-one", foo2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	c1 := Equal("$.name", "test-one")
 
-	_, err = table.QueryOne(c1)
+	_, err = table.QueryOne(ctx, c1)
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal(err)
 	}
 
 	c2 := Equal("$.name", "test-two")
 
-	val, err := table.QueryOne(c2)
+	val, err := table.QueryOne(ctx, c2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,27 +189,31 @@ func TestTableUpdate(t *testing.T) {
 }
 
 func TestTableCreateIndex(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
-	name, err := table.CreateIndex("$.name", "$.bar.name")
+	name, err := table.CreateIndex(ctx, "$.name", "$.bar.name")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = table.hasIndex(name)
+	_, err = table.hasIndex(ctx, name)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestTableCount(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foos := []Foo{
 		{
@@ -221,13 +230,13 @@ func TestTableCount(t *testing.T) {
 	}
 
 	for _, tag := range foos {
-		err := table.Insert(tag)
+		err := table.Insert(ctx, tag)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	count, err := table.Count()
+	count, err := table.Count(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,14 +246,16 @@ func TestTableCount(t *testing.T) {
 }
 
 func TestTableSelectNoResults(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	c := Equal("$.name", "nothing")
 
-	_, err := table.QueryOne(c)
+	_, err := table.QueryOne(ctx, c)
 	if err == nil {
 		t.Fatal("expected error got nil")
 	}
@@ -257,10 +268,13 @@ func TestTableSelectNoResults(t *testing.T) {
 }
 
 func TestTableSelectMany(t *testing.T) {
+
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foos := []Foo{{
 		Name: "select-many",
@@ -275,7 +289,7 @@ func TestTableSelectMany(t *testing.T) {
 	}}
 
 	for _, tag := range foos {
-		err := table.Insert(tag)
+		err := table.Insert(ctx, tag)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -283,7 +297,7 @@ func TestTableSelectMany(t *testing.T) {
 
 	c := Equal("$.name", "select-many")
 
-	vals, err := table.QueryMany(c)
+	vals, err := table.QueryMany(ctx, c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,10 +307,12 @@ func TestTableSelectMany(t *testing.T) {
 }
 
 func TestTableInjectValue(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foo := Foo{
 		Name: "injection",
@@ -305,23 +321,24 @@ func TestTableInjectValue(t *testing.T) {
 		},
 	}
 
-	err := table.Insert(foo)
+	err := table.Insert(ctx, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = table.QueryOne(Equal("$.name", "injection' OR 1=1 --"))
+	_, err = table.QueryOne(ctx, Equal("$.name", "injection' OR 1=1 --"))
 	if err == nil {
 		t.Fatal("expected error got nil")
 	}
-
 }
 
 func TestTableInjectField(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foo := Foo{
 		Name: "injection",
@@ -330,23 +347,24 @@ func TestTableInjectField(t *testing.T) {
 		},
 	}
 
-	err := table.Insert(foo)
+	err := table.Insert(ctx, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = table.QueryOne(Equal("$.name' OR 1=1 --", "injection"))
+	_, err = table.QueryOne(ctx, Equal("$.name' OR 1=1 --", "injection"))
 	if err == nil {
 		t.Fatal("expected error got nil")
 	}
-
 }
 
 func TestTableDelete(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foo := Foo{
 		Name: "delete",
@@ -355,29 +373,31 @@ func TestTableDelete(t *testing.T) {
 		},
 	}
 
-	err := table.Insert(foo)
+	err := table.Insert(ctx, foo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	c := Equal("$.name", "delete")
 
-	err = table.Delete(c)
+	err = table.Delete(ctx, c)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = table.QueryOne(c)
+	_, err = table.QueryOne(ctx, c)
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal(err)
 	}
 }
 
 func TestTableSelectIn(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foos := []Foo{
 		{
@@ -399,7 +419,7 @@ func TestTableSelectIn(t *testing.T) {
 	}
 
 	for _, f := range foos {
-		err := table.Insert(f)
+		err := table.Insert(ctx, f)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -407,8 +427,7 @@ func TestTableSelectIn(t *testing.T) {
 
 	condition := In("$.id", 1, 2, 3)
 
-	//_, err := table.QueryMany(condition)
-	vals, err := table.QueryMany(condition)
+	vals, err := table.QueryMany(ctx, condition)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,10 +437,12 @@ func TestTableSelectIn(t *testing.T) {
 }
 
 func TestTableSelectContainsAll(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foos := []Foo{
 		{
@@ -439,7 +460,7 @@ func TestTableSelectContainsAll(t *testing.T) {
 	}
 
 	for _, f := range foos {
-		err := table.Insert(f)
+		err := table.Insert(ctx, f)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -447,7 +468,7 @@ func TestTableSelectContainsAll(t *testing.T) {
 
 	condition := ContainsAll("$.list", "two", "three")
 
-	vals, err := table.QueryMany(condition)
+	vals, err := table.QueryMany(ctx, condition)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,10 +478,12 @@ func TestTableSelectContainsAll(t *testing.T) {
 }
 
 func TestTableSelectContainsAny(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foos := []Foo{
 		{
@@ -478,7 +501,7 @@ func TestTableSelectContainsAny(t *testing.T) {
 	}
 
 	for _, f := range foos {
-		err := table.Insert(f)
+		err := table.Insert(ctx, f)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -486,7 +509,7 @@ func TestTableSelectContainsAny(t *testing.T) {
 
 	condition := ContainsAny("$.list", "one", "two", "three")
 
-	vals, err := table.QueryMany(condition)
+	vals, err := table.QueryMany(ctx, condition)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -496,10 +519,12 @@ func TestTableSelectContainsAny(t *testing.T) {
 }
 
 func TestTableSelectContains(t *testing.T) {
+	ctx := context.Background()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](t, store)
+	table := helperTable[Foo](ctx, t, store)
 
 	foos := []Foo{
 		{
@@ -517,7 +542,7 @@ func TestTableSelectContains(t *testing.T) {
 	}
 
 	for _, f := range foos {
-		err := table.Insert(f)
+		err := table.Insert(ctx, f)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -525,7 +550,7 @@ func TestTableSelectContains(t *testing.T) {
 
 	condition := Contains("$.list", "one")
 
-	vals, err := table.QueryMany(condition)
+	vals, err := table.QueryMany(ctx, condition)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package nosqlite
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -21,10 +22,10 @@ func (n *Table[T]) getTableName() string {
 }
 
 // NewTable creates a new table with the given type T
-func NewTable[T any](store *Store) (*Table[T], error) {
+func NewTable[T any](ctx context.Context, store *Store) (*Table[T], error) {
 	table := &Table[T]{store: store}
 
-	err := table.CreateTable()
+	err := table.CreateTable(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -58,28 +59,26 @@ func (n *Table[T]) indexName(fields ...string) string {
 	return constructIndexName(n.getTableName(), fields...)
 }
 
-// CreateTable creates the table if it does not exist
-func (n *Table[T]) CreateTable() error {
-	return n.createTableWithName(n.getTableName())
+func (n *Table[T]) CreateTable(ctx context.Context) error {
+	return n.createTableWithName(ctx, n.getTableName())
 }
 
-func (n *Table[T]) createTableWithName(tableName string) error {
+func (n *Table[T]) createTableWithName(ctx context.Context, tableName string) error {
 	createStatement := fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s` (data jsonb)", tableName)
-	_, err := n.store.db.Exec(createStatement, tableName)
+	_, err := n.store.db.ExecContext(ctx, createStatement, tableName)
 	return err
 }
 
-// Count returns the number of rows in the table
-func (n *Table[T]) Count() (uint64, error) {
+func (n *Table[T]) Count(ctx context.Context) (uint64, error) {
 	var c uint64
 	tableName := n.getTableName()
-	count := n.store.db.QueryRow(fmt.Sprintf("SELECT COUNT(*) AS count FROM `%s`", tableName))
+	count := n.store.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) AS count FROM `%s`", tableName))
 	err := count.Scan(&c)
 	return c, err
 }
 
 // CreateIndex creates an index on the given fields
-func (n *Table[T]) CreateIndex(fields ...string) (string, error) {
+func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, error) {
 	tableName := n.getTableName()
 	indexName := n.indexName(fields...)
 
@@ -91,48 +90,47 @@ func (n *Table[T]) CreateIndex(fields ...string) (string, error) {
 	indexes := strings.Join(indexFields, ", ")
 
 	createIndexStatement := fmt.Sprintf("CREATE INDEX IF NOT EXISTS `%s` ON `%s` (%s)", indexName, tableName, indexes)
-	_, err := n.store.db.Exec(createIndexStatement)
+	_, err := n.store.db.ExecContext(ctx, createIndexStatement)
 	return indexName, err
 }
 
 // hasIndex returns true if the index exists
-func (n *Table[T]) hasIndex(indexName string) (bool, error) {
+func (n *Table[T]) hasIndex(ctx context.Context, indexName string) (bool, error) {
 	tableName := n.getTableName()
-	_, err := n.store.db.Exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?", tableName, indexName)
+	_, err := n.store.db.ExecContext(ctx, "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?", tableName, indexName)
 	if err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-// Delete removes one or more items from the table
-func (n *Table[T]) Delete(clause Clause) error {
+func (n *Table[T]) Delete(ctx context.Context, clause Clause) error {
 	tableName := n.getTableName()
 	deleteStatement := fmt.Sprintf("DELETE FROM `%s` WHERE %s", tableName, clause.Clause())
-	_, err := n.store.db.Exec(deleteStatement, clause.Values()...)
+	_, err := n.store.db.ExecContext(ctx, deleteStatement, clause.Values()...)
 	return err
 }
 
 // Insert adds a new item to the table
-func (n *Table[T]) Insert(data T) error {
+func (n *Table[T]) Insert(ctx context.Context, data T) error {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
 	tableName := n.getTableName()
 	insertStatement := fmt.Sprintf("INSERT INTO `%s` (data) VALUES (?)", tableName)
-	_, err = n.store.db.Exec(insertStatement, string(b))
+	_, err = n.store.db.ExecContext(ctx, insertStatement, string(b))
 	return err
 }
 
 // QueryOne returns a single item from the table
-func (n *Table[T]) QueryOne(clause Clause) (*T, error) {
+func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	//func (n *Table[T]) QueryOne(field, value string) (*T, error) {
 	var data string
 	//tag->'$.country.name'
 	tableName := n.getTableName()
 	queryStatement := fmt.Sprintf("SELECT data FROM `%s` WHERE %s", tableName, clause.Clause())
-	row := n.store.db.QueryRow(queryStatement, clause.Values()...)
+	row := n.store.db.QueryRowContext(ctx, queryStatement, clause.Values()...)
 	err := row.Scan(&data)
 	if err != nil {
 		return nil, err
@@ -144,12 +142,12 @@ func (n *Table[T]) QueryOne(clause Clause) (*T, error) {
 
 // QueryMany returns multiple items from the table
 // can we use http://doug-martin.github.io/goqu/ for this?
-func (n *Table[T]) QueryMany(clause Clause) ([]T, error) {
+func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
 	var data string
 	var results []T
 	tableName := n.getTableName()
 	queryStatement := fmt.Sprintf("SELECT data FROM `%s` WHERE %s", tableName, clause.Clause())
-	rows, err := n.store.db.Query(queryStatement, clause.Values()...)
+	rows, err := n.store.db.QueryContext(ctx, queryStatement, clause.Values()...)
 	if err != nil {
 		return nil, err
 	}
@@ -171,13 +169,13 @@ func (n *Table[T]) QueryMany(clause Clause) ([]T, error) {
 }
 
 // Update changes one or more items in the table
-func (n *Table[T]) Update(field, value string, newVal T) error {
+func (n *Table[T]) Update(ctx context.Context, field, value string, newVal T) error {
 	b, err := json.Marshal(newVal)
 	if err != nil {
 		return err
 	}
 	tableName := n.getTableName()
 	updateStatement := fmt.Sprintf("UPDATE %s SET data = ? WHERE data->>? = ?", tableName)
-	_, err = n.store.db.Exec(updateStatement, string(b), field, value)
+	_, err = n.store.db.ExecContext(ctx, updateStatement, string(b), field, value)
 	return err
 }
