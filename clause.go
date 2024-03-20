@@ -2,7 +2,6 @@ package nosqlite
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"golang.org/x/exp/constraints"
@@ -40,42 +39,48 @@ func jsonField(field string) string {
 	return fmt.Sprintf("data->>'%s'", field)
 }
 
-type andClause struct {
-	clauseOne Clause
-	clauseTwo Clause
+type combinatorClause struct {
+	combinator    combinator
+	clauses       []Clause
+	clauseStrings []string
+	values        []any
 }
 
-func (c andClause) Clause() string {
-	return fmt.Sprintf("(%s AND %s)", c.clauseOne.Clause(), c.clauseTwo.Clause())
+func (c combinatorClause) Clause() string {
+	joiner := fmt.Sprintf(" %s ", string(c.combinator))
+	return fmt.Sprintf("(%s)", strings.Join(c.clauseStrings, joiner))
 }
 
-func (c andClause) Values() []any {
-	valuesOne := slices.Clone(c.clauseOne.Values())
-	return append(valuesOne, c.clauseTwo.Values()...)
+func (c combinatorClause) Values() []any {
+	//valuesOne := slices.Clone(c.clauseOne.Values())
+	return c.values
 }
 
-// TODO: turn this into AND(clause ...Clause) Clause
-func And(clauseOne, clauseTwo Clause) Clause {
-	return andClause{clauseOne: clauseOne, clauseTwo: clauseTwo}
+func combine(combinator combinator, clauses ...Clause) Clause {
+	clauseStrings := make([]string, len(clauses))
+	for i, clause := range clauses {
+		clauseStrings[i] = clause.Clause()
+	}
+
+	values := make([]any, 0, len(clauses))
+	for _, clause := range clauses {
+		values = append(values, clause.Values()...)
+	}
+
+	return combinatorClause{
+		combinator:    combinator,
+		clauses:       clauses,
+		clauseStrings: clauseStrings,
+		values:        values,
+	}
 }
 
-type orClause struct {
-	clauseOne Clause
-	clauseTwo Clause
+func And(clauses ...Clause) Clause {
+	return combine(andCombinator, clauses...)
 }
 
-func (c orClause) Clause() string {
-	return fmt.Sprintf("(%s OR %s)", c.clauseOne.Clause(), c.clauseTwo.Clause())
-}
-
-func (c orClause) Values() []any {
-	valuesOne := slices.Clone(c.clauseOne.Values())
-	return append(valuesOne, c.clauseTwo.Values()...)
-}
-
-// TODO: turn this into OR(clause ...Clause) Clause
-func Or(clauseOne, clauseTwo Clause) Clause {
-	return orClause{clauseOne: clauseOne, clauseTwo: clauseTwo}
+func Or(clauses ...Clause) Clause {
+	return combine(orCombinator, clauses...)
 }
 
 type condition[T string | number] struct {
