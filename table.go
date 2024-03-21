@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/pkg/errors"
 )
 
 // Table represents a table in the database
@@ -75,7 +74,7 @@ func (n *Table[T]) createTableWithName(ctx context.Context, tableName string) er
 func (n *Table[T]) Count(ctx context.Context) (uint64, error) {
 	var c uint64
 	tableName := n.getTableName()
-	count := n.store.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) AS count FROM `%s`", tableName))
+	count := n.store.db.QueryRowContext(ctx, fmt.Sprintf("%s COUNT(*) AS count FROM `%s`", "SELECT", tableName))
 	err := count.Scan(&c)
 	return c, err
 }
@@ -110,7 +109,7 @@ func (n *Table[T]) hasIndex(ctx context.Context, indexName string) (bool, error)
 // Delete removes items from the table that match the given clause
 func (n *Table[T]) Delete(ctx context.Context, clause Clause) error {
 	tableName := n.getTableName()
-	deleteStatement := fmt.Sprintf("DELETE FROM `%s` WHERE %s", tableName, clause.Clause())
+	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", tableName, clause.Clause())
 	_, err := n.store.db.ExecContext(ctx, deleteStatement, clause.Values()...)
 	return err
 }
@@ -122,7 +121,7 @@ func (n *Table[T]) Insert(ctx context.Context, data T) error {
 		return err
 	}
 	tableName := n.getTableName()
-	insertStatement := fmt.Sprintf("INSERT INTO `%s` (data) VALUES (?)", tableName)
+	insertStatement := fmt.Sprintf("%s `%s` (data) VALUES (?)", "INSERT INTO", tableName)
 	_, err = n.store.db.ExecContext(ctx, insertStatement, string(b))
 	return err
 }
@@ -133,7 +132,7 @@ func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	var data string
 	//tag->'$.country.name'
 	tableName := n.getTableName()
-	queryStatement := fmt.Sprintf("SELECT data FROM `%s` WHERE %s", tableName, clause.Clause())
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", tableName, clause.Clause())
 	row := n.store.db.QueryRowContext(ctx, queryStatement, clause.Values()...)
 	err := row.Scan(&data)
 	if err != nil {
@@ -150,7 +149,7 @@ func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
 	var data string
 	var results []T
 	tableName := n.getTableName()
-	queryStatement := fmt.Sprintf("SELECT data FROM `%s` WHERE %s", tableName, clause.Clause())
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", tableName, clause.Clause())
 	rows, err := n.store.db.QueryContext(ctx, queryStatement, clause.Values()...)
 	if err != nil {
 		return nil, err
@@ -179,8 +178,8 @@ func (n *Table[T]) Update(ctx context.Context, clause Clause, newVal T) error {
 		return err
 	}
 	tableName := n.getTableName()
-	updateStatement := fmt.Sprintf("UPDATE %s SET data = ? WHERE %s", tableName, clause.Clause())
+	updateStatement := fmt.Sprintf("%s %s SET data = ? WHERE %s", "UPDATE", tableName, clause.Clause())
 	params := append([]any{string(b)}, clause.Values()...)
 	_, err = n.store.db.ExecContext(ctx, updateStatement, params...)
-	return errors.Wrap(err, updateStatement)
+	return err
 }
