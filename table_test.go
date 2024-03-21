@@ -164,7 +164,9 @@ func TestTableUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = table.Update(ctx, "$.name", "test-one", foo2)
+	updateClause := Equal("$.name", "test-one")
+
+	err = table.Update(ctx, updateClause, foo2)
 	if err != nil {
 		t.Fatal(err)
 	}

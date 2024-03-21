@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pkg/errors"
 )
 
 // Table represents a table in the database
@@ -172,13 +173,14 @@ func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
 }
 
 // Update changes one or more items in the table
-func (n *Table[T]) Update(ctx context.Context, field, value string, newVal T) error {
+func (n *Table[T]) Update(ctx context.Context, clause Clause, newVal T) error {
 	b, err := json.Marshal(newVal)
 	if err != nil {
 		return err
 	}
 	tableName := n.getTableName()
-	updateStatement := fmt.Sprintf("UPDATE %s SET data = ? WHERE data->>? = ?", tableName)
-	_, err = n.store.db.ExecContext(ctx, updateStatement, string(b), field, value)
-	return err
+	updateStatement := fmt.Sprintf("UPDATE %s SET data = ? WHERE %s", tableName, clause.Clause())
+	params := append([]any{string(b)}, clause.Values()...)
+	_, err = n.store.db.ExecContext(ctx, updateStatement, params...)
+	return errors.Wrap(err, updateStatement)
 }
