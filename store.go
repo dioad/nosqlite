@@ -9,7 +9,7 @@ type Store struct {
 
 // NewStore creates a new store with the given file path
 func NewStore(filePath string) (*Store, error) {
-	db, err := sql.Open("sqlite3", filePath)
+	db, err := sql.Open("sqlite", filePath)
 	if err != nil {
 		return nil, err
 	}
