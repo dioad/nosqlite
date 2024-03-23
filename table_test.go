@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 )
 
 type Bar struct {
@@ -83,6 +83,42 @@ func TestEscapeFieldName(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("expected %s got %s", test.expected, result)
 		}
+	}
+}
+
+func TestTypeName(t *testing.T) {
+	result, isPointer := typeName[Foo]()
+	if result != "nosqlite.Foo" {
+		t.Errorf("expected nosqlite.Foo got %s", result)
+	}
+
+	if isPointer {
+		t.Errorf("expected isPointer=false got true")
+	}
+}
+
+func TestTypeNameWithPointer(t *testing.T) {
+	result, isPointer := typeName[*Foo]()
+	if result != "nosqlite.Foo" {
+		t.Errorf("expected nosqlite.Foo got %s", result)
+	}
+
+	if !isPointer {
+		t.Errorf("expected isPointer=true got false")
+	}
+}
+
+func TestTableName(t *testing.T) {
+	result := tableName[Foo]()
+	if result != "nosqlite_foo" {
+		t.Errorf("expected nosqlite_foo got %s", result)
+	}
+}
+
+func TestTableNameWithPointer(t *testing.T) {
+	result := tableName[*Foo]()
+	if result != "nosqlite_foo" {
+		t.Errorf("expected nosqlite_foo got %s", result)
 	}
 }
 
@@ -196,11 +232,17 @@ func TestTableCreateIndex(t *testing.T) {
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
-	table := helperTable[Foo](ctx, t, store)
+	table := helperTable[*Foo](ctx, t, store)
 
 	name, err := table.CreateIndex(ctx, "$.name", "$.bar.name")
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// TODO: Add a test to ensure that Foo is within the index
+	if name != "idx_nosqlite_foo_name_bar__name" {
+		t.Errorf("expected idx_foo_name_bar__name got %s", name)
+
 	}
 
 	_, err = table.hasIndex(ctx, name)

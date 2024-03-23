@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // Table represents a table in the database
@@ -15,10 +13,30 @@ type Table[T any] struct {
 	store *Store
 }
 
-func (n *Table[T]) getTableName() string {
+func typeName[T any]() (string, bool) {
 	a := *new(T)
 	t := reflect.TypeOf(a)
-	return strings.ToLower(t.Name())
+	name := t.String()
+
+	isPointer := false
+	if strings.HasPrefix(name, "*") {
+		isPointer = true
+		name = strings.Replace(name, "*", "", 1)
+	}
+
+	return name, isPointer
+}
+
+func tableName[T any]() string {
+	t, _ := typeName[T]()
+
+	nameNoDots := strings.Replace(t, ".", "_", -1)
+
+	return strings.ToLower(nameNoDots)
+}
+
+func (n *Table[T]) getTableName() string {
+	return tableName[T]()
 }
 
 // NewTable creates a new table with the given type T
@@ -66,7 +84,7 @@ func (n *Table[T]) CreateTable(ctx context.Context) error {
 
 func (n *Table[T]) createTableWithName(ctx context.Context, tableName string) error {
 	createStatement := fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s` (data jsonb)", tableName)
-	_, err := n.store.db.ExecContext(ctx, createStatement, tableName)
+	_, err := n.store.db.ExecContext(ctx, createStatement)
 	return err
 }
 
