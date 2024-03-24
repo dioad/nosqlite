@@ -54,6 +54,30 @@ func TestAndClauses(t *testing.T) {
 	}
 }
 
+func TestAndClausesFluent(t *testing.T) {
+	clauseOne := &condition[int]{
+		Field:    "id",
+		Operator: equalsOperator,
+		Value:    1,
+	}
+	clauseTwo := &condition[string]{
+		Field:    "name",
+		Operator: equalsOperator,
+		Value:    "test",
+	}
+
+	want := "((data->>'id' = ?) AND (data->>'name' = ?))"
+
+	c := clauseOne.And(clauseTwo)
+	if got := c.Clause(); got != want {
+		t.Errorf("got = %v, want %v", got, want)
+	}
+
+	if got := c.Values(); got[0] != "1" || got[1] != "test" {
+		t.Errorf("got = %v, want %v", got, []string{"1", "test"})
+	}
+}
+
 func TestOrClauses(t *testing.T) {
 	clauseOne := &condition[int]{
 		Field:    "id",
@@ -69,6 +93,30 @@ func TestOrClauses(t *testing.T) {
 	want := "((data->>'id' = ?) OR (data->>'name' = ?))"
 
 	c := Or(clauseOne, clauseTwo)
+	if got := c.Clause(); got != want {
+		t.Errorf("got = %v, want %v", got, want)
+	}
+
+	if got := c.Values(); got[0] != "1" || got[1] != "test" {
+		t.Errorf("got = %v, want %v", got, []string{"1", "test"})
+	}
+}
+
+func TestOrClausesFluent(t *testing.T) {
+	clauseOne := &condition[int]{
+		Field:    "id",
+		Operator: equalsOperator,
+		Value:    1,
+	}
+	clauseTwo := &condition[string]{
+		Field:    "name",
+		Operator: equalsOperator,
+		Value:    "test",
+	}
+
+	want := "((data->>'id' = ?) OR (data->>'name' = ?))"
+
+	c := clauseOne.Or(clauseTwo)
 	if got := c.Clause(); got != want {
 		t.Errorf("got = %v, want %v", got, want)
 	}
@@ -104,6 +152,38 @@ func TestAndOrClauses(t *testing.T) {
 	}
 
 	if got := c2.Values(); got[0] != "1" || got[1] != "test" || got[2] != "bar" {
+		t.Errorf("got %v, want %v", got, []string{"1", "test", "bar"})
+	}
+}
+
+func TestAndOrClausesFluent(t *testing.T) {
+	clauseOne := &condition[int]{
+		Field:    "id",
+		Operator: equalsOperator,
+		Value:    1,
+	}
+	clauseTwo := &condition[string]{
+		Field:    "name",
+		Operator: equalsOperator,
+		Value:    "test",
+	}
+	clauseThree := &condition[string]{
+		Field:    "foo",
+		Operator: equalsOperator,
+		Value:    "bar",
+	}
+
+	want := "(((data->>'id' = ?) AND (data->>'name' = ?)) OR (data->>'foo' = ?))"
+
+	c := clauseOne.And(clauseTwo).Or(clauseThree)
+	//c1 := And(clauseOne, clauseTwo)
+	//c2 := Or(c1, clauseThree)
+
+	if got := c.Clause(); got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	if got := c.Values(); got[0] != "1" || got[1] != "test" || got[2] != "bar" {
 		t.Errorf("got %v, want %v", got, []string{"1", "test", "bar"})
 	}
 }

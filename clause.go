@@ -36,6 +36,9 @@ type Clause interface {
 	Clause() string
 	// Values returns the values to assign to the parameters in the clause
 	Values() []any
+
+	And(c Clause) Clause
+	Or(c Clause) Clause
 }
 
 func jsonField(field string) string {
@@ -49,14 +52,22 @@ type combinatorClause struct {
 	values        []any
 }
 
-func (c combinatorClause) Clause() string {
+func (c *combinatorClause) Clause() string {
 	joiner := fmt.Sprintf(" %s ", string(c.combinator))
 	return fmt.Sprintf("(%s)", strings.Join(c.clauseStrings, joiner))
 }
 
-func (c combinatorClause) Values() []any {
+func (c *combinatorClause) Values() []any {
 	//valuesOne := slices.Clone(c.clauseOne.Values())
 	return c.values
+}
+
+func (c *combinatorClause) And(cl Clause) Clause {
+	return And(c, cl)
+}
+
+func (c *combinatorClause) Or(cl Clause) Clause {
+	return Or(c, cl)
 }
 
 func combine(combinator combinator, clauses ...Clause) Clause {
@@ -70,7 +81,7 @@ func combine(combinator combinator, clauses ...Clause) Clause {
 		values = append(values, clause.Values()...)
 	}
 
-	return combinatorClause{
+	return &combinatorClause{
 		combinator:    combinator,
 		clauses:       clauses,
 		clauseStrings: clauseStrings,
@@ -100,6 +111,14 @@ func (c *condition[T]) Clause() string {
 
 func (c *condition[T]) Values() []any {
 	return []any{fmt.Sprintf("%v", c.Value)}
+}
+
+func (c *condition[T]) And(cl Clause) Clause {
+	return And(c, cl)
+}
+
+func (c *condition[T]) Or(cl Clause) Clause {
+	return Or(c, cl)
 }
 
 // Equal returns a clause that checks if a field is equal to a value
@@ -160,6 +179,14 @@ func (c *inCondition) Values() []any {
 	return c.values
 }
 
+func (c *inCondition) And(cl Clause) Clause {
+	return And(c, cl)
+}
+
+func (c *inCondition) Or(cl Clause) Clause {
+	return Or(c, cl)
+}
+
 // In returns a clause that checks if a field is in a list of values
 func In(field string, values ...any) Clause {
 	return &inCondition{Field: field, values: values}
@@ -177,6 +204,14 @@ func (c *betweenCondition[T]) Clause() string {
 
 func (c *betweenCondition[T]) Values() []any {
 	return []any{c.From, c.To}
+}
+
+func (c *betweenCondition[T]) And(cl Clause) Clause {
+	return And(c, cl)
+}
+
+func (c *betweenCondition[T]) Or(cl Clause) Clause {
+	return Or(c, cl)
 }
 
 // Between returns a clause that checks if a field is between two values
@@ -207,6 +242,14 @@ func (c *containsCondition) Clause() string {
 
 func (c *containsCondition) Values() []any {
 	return c.values
+}
+
+func (c *containsCondition) And(cl Clause) Clause {
+	return And(c, cl)
+}
+
+func (c *containsCondition) Or(cl Clause) Clause {
+	return Or(c, cl)
 }
 
 // Contains returns a clause that checks if a list field contains a single value
