@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	_ "github.com/glebarez/go-sqlite"
+	_ "github.com/glebarez/go-sqlite/compat"
 )
 
 type Bar struct {
@@ -83,28 +83,6 @@ func TestEscapeFieldName(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("expected %s got %s", test.expected, result)
 		}
-	}
-}
-
-func TestTypeName(t *testing.T) {
-	result, isPointer := typeName[Foo]()
-	if result != "nosqlite.Foo" {
-		t.Errorf("expected nosqlite.Foo got %s", result)
-	}
-
-	if isPointer {
-		t.Errorf("expected isPointer=false got true")
-	}
-}
-
-func TestTypeNameWithPointer(t *testing.T) {
-	result, isPointer := typeName[*Foo]()
-	if result != "nosqlite.Foo" {
-		t.Errorf("expected nosqlite.Foo got %s", result)
-	}
-
-	if !isPointer {
-		t.Errorf("expected isPointer=true got false")
 	}
 }
 

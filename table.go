@@ -4,44 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
+
+	"github.com/dioad/reflect"
 )
 
 // Table represents a table in the database
 type Table[T any] struct {
 	store *Store
-}
 
-func typeName[T any]() (string, bool) {
-	a := *new(T)
-	t := reflect.TypeOf(a)
-	name := t.String()
-
-	isPointer := false
-	if strings.HasPrefix(name, "*") {
-		isPointer = true
-		name = strings.Replace(name, "*", "", 1)
-	}
-
-	return name, isPointer
+	// Name of the table
+	Name string
 }
 
 func tableName[T any]() string {
-	t, _ := typeName[T]()
+	t, _ := reflect.Name[T]()
 
 	nameNoDots := strings.Replace(t, ".", "_", -1)
 
 	return strings.ToLower(nameNoDots)
 }
 
-func (n *Table[T]) getTableName() string {
-	return tableName[T]()
-}
-
 // NewTable creates a new table with the given type T
 func NewTable[T any](ctx context.Context, store *Store) (*Table[T], error) {
-	table := &Table[T]{store: store}
+	table := &Table[T]{
+		store: store,
+		Name:  tableName[T](),
+	}
 
 	err := table.CreateTable(ctx)
 	if err != nil {
@@ -74,12 +63,12 @@ func constructIndexName(tableName string, fields ...string) string {
 }
 
 func (n *Table[T]) indexName(fields ...string) string {
-	return constructIndexName(n.getTableName(), fields...)
+	return constructIndexName(n.Name, fields...)
 }
 
 // CreateTable creates the table if it does not exist
 func (n *Table[T]) CreateTable(ctx context.Context) error {
-	return n.createTableWithName(ctx, n.getTableName())
+	return n.createTableWithName(ctx, n.Name)
 }
 
 func (n *Table[T]) createTableWithName(ctx context.Context, tableName string) error {
@@ -91,15 +80,13 @@ func (n *Table[T]) createTableWithName(ctx context.Context, tableName string) er
 // Count returns the number of items in the table
 func (n *Table[T]) Count(ctx context.Context) (uint64, error) {
 	var c uint64
-	tableName := n.getTableName()
-	count := n.store.db.QueryRowContext(ctx, fmt.Sprintf("%s COUNT(*) AS count FROM `%s`", "SELECT", tableName))
+	count := n.store.db.QueryRowContext(ctx, fmt.Sprintf("%s COUNT(*) AS count FROM `%s`", "SELECT", n.Name))
 	err := count.Scan(&c)
 	return c, err
 }
 
 // CreateIndex creates an index on the given fields
 func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, error) {
-	tableName := n.getTableName()
 	indexName := n.indexName(fields...)
 
 	indexFields := make([]string, len(fields))
@@ -109,15 +96,14 @@ func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, e
 
 	indexes := strings.Join(indexFields, ", ")
 
-	createIndexStatement := fmt.Sprintf("CREATE INDEX IF NOT EXISTS `%s` ON `%s` (%s)", indexName, tableName, indexes)
+	createIndexStatement := fmt.Sprintf("CREATE INDEX IF NOT EXISTS `%s` ON `%s` (%s)", indexName, n.Name, indexes)
 	_, err := n.store.db.ExecContext(ctx, createIndexStatement)
 	return indexName, err
 }
 
 // hasIndex returns true if the index exists
 func (n *Table[T]) hasIndex(ctx context.Context, indexName string) (bool, error) {
-	tableName := n.getTableName()
-	_, err := n.store.db.ExecContext(ctx, "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?", tableName, indexName)
+	_, err := n.store.db.ExecContext(ctx, "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?", n.Name, indexName)
 	if err != nil {
 		return false, err
 	}
@@ -126,8 +112,7 @@ func (n *Table[T]) hasIndex(ctx context.Context, indexName string) (bool, error)
 
 // Delete removes items from the table that match the given clause
 func (n *Table[T]) Delete(ctx context.Context, clause Clause) error {
-	tableName := n.getTableName()
-	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", tableName, clause.Clause())
+	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause())
 	_, err := n.store.db.ExecContext(ctx, deleteStatement, clause.Values()...)
 	return err
 }
@@ -138,19 +123,16 @@ func (n *Table[T]) Insert(ctx context.Context, data T) error {
 	if err != nil {
 		return err
 	}
-	tableName := n.getTableName()
-	insertStatement := fmt.Sprintf("%s `%s` (data) VALUES (?)", "INSERT INTO", tableName)
+	insertStatement := fmt.Sprintf("%s `%s` (data) VALUES (?)", "INSERT INTO", n.Name)
 	_, err = n.store.db.ExecContext(ctx, insertStatement, string(b))
 	return err
 }
 
 // QueryOne returns a single item from the table
 func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
-	//func (n *Table[T]) QueryOne(field, value string) (*T, error) {
 	var data string
-	//tag->'$.country.name'
-	tableName := n.getTableName()
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", tableName, clause.Clause())
+
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause())
 	row := n.store.db.QueryRowContext(ctx, queryStatement, clause.Values()...)
 	err := row.Scan(&data)
 	if err != nil {
@@ -166,8 +148,8 @@ func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
 	var data string
 	var results []T
-	tableName := n.getTableName()
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", tableName, clause.Clause())
+
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause())
 	rows, err := n.store.db.QueryContext(ctx, queryStatement, clause.Values()...)
 	if err != nil {
 		return nil, err
@@ -195,8 +177,7 @@ func (n *Table[T]) Update(ctx context.Context, clause Clause, newVal T) error {
 	if err != nil {
 		return err
 	}
-	tableName := n.getTableName()
-	updateStatement := fmt.Sprintf("%s %s SET data = ? WHERE %s", "UPDATE", tableName, clause.Clause())
+	updateStatement := fmt.Sprintf("%s %s SET data = ? WHERE %s", "UPDATE", n.Name, clause.Clause())
 	params := append([]any{string(b)}, clause.Values()...)
 	_, err = n.store.db.ExecContext(ctx, updateStatement, params...)
 	return err
