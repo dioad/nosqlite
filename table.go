@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dioad/reflect"
+	"github.com/pkg/errors"
 )
 
 // Table represents a table in the database
@@ -83,6 +84,18 @@ func (n *Table[T]) Count(ctx context.Context) (uint64, error) {
 	count := n.store.db.QueryRowContext(ctx, fmt.Sprintf("%s COUNT(*) AS count FROM `%s`", "SELECT", n.Name))
 	err := count.Scan(&c)
 	return c, err
+}
+
+func (n *Table[T]) CreateIndexes(ctx context.Context, indexes ...[]string) ([]string, error) {
+	var err error
+	indexNames := make([]string, len(indexes))
+	for i, fields := range indexes {
+		indexNames[i], err = n.CreateIndex(ctx, fields...)
+		if err != nil {
+			return indexNames, errors.Wrap(err, fmt.Sprintf("failed to create index for fields %v", fields))
+		}
+	}
+	return indexNames, nil
 }
 
 // CreateIndex creates an index on the given fields
