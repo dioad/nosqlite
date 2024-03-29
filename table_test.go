@@ -2,8 +2,6 @@ package nosqlite
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"os"
 	"testing"
 
@@ -188,7 +186,7 @@ func TestTableUpdate(t *testing.T) {
 	c1 := Equal("$.name", "test-one")
 
 	_, err = table.QueryOne(ctx, c1)
-	if !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -277,16 +275,13 @@ func TestTableSelectNoResults(t *testing.T) {
 
 	c := Equal("$.name", "nothing")
 
-	_, err := table.QueryOne(ctx, c)
-	if err == nil {
-		t.Fatal("expected error got nil")
+	res, err := table.QueryOne(ctx, c)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return
+	if res != nil {
+		t.Fatal("expected nil result")
 	}
-
-	t.Fatal(err)
 }
 
 func TestTableSelectMany(t *testing.T) {
@@ -348,9 +343,13 @@ func TestTableInjectValue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = table.QueryOne(ctx, Equal("$.name", "injection' OR 1=1 --"))
-	if err == nil {
+	res, err := table.QueryOne(ctx, Equal("$.name", "injection' OR 1=1 --"))
+	if err != nil {
 		t.Fatal("expected error got nil")
+	}
+
+	if res != nil {
+		t.Fatal("expected nil result")
 	}
 }
 
@@ -407,9 +406,12 @@ func TestTableDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = table.QueryOne(ctx, c)
-	if !errors.Is(err, sql.ErrNoRows) {
+	res, err := table.QueryOne(ctx, c)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if res != nil {
+		t.Fatal("expected nil result")
 	}
 }
 

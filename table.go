@@ -2,6 +2,7 @@ package nosqlite
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -148,6 +149,9 @@ func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause())
 	row := n.store.db.QueryRowContext(ctx, queryStatement, clause.Values()...)
 	err := row.Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +168,10 @@ func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
 
 	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause())
 	rows, err := n.store.db.QueryContext(ctx, queryStatement, clause.Values()...)
+	if errors.Is(err, sql.ErrNoRows) {
+		return results, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
