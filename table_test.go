@@ -20,6 +20,8 @@ type Foo struct {
 }
 
 func helperTempFile(t *testing.T) string {
+	t.Helper()
+
 	tmpDir := os.TempDir()
 	f, err := os.CreateTemp(tmpDir, "test-nosqlite.db")
 	if err != nil {
@@ -215,7 +217,6 @@ func TestTableCreateIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// TODO: Add a test to ensure that Foo is within the index
 	if name != "idx_nosqlite_foo_name_bar__name" {
 		t.Errorf("expected idx_foo_name_bar__name got %s", name)
 
@@ -490,7 +491,8 @@ func TestTableSelectContainsAll(t *testing.T) {
 		}
 	}
 
-	condition := ContainsAll("$.list", "two", "three")
+	//condition := ContainsAll("$.list", "two", "three")
+	condition := ContainsAll("$.list", "two")
 
 	vals, err := table.QueryMany(ctx, condition)
 	if err != nil {

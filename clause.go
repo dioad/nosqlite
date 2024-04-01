@@ -226,7 +226,7 @@ type containsCondition struct {
 }
 
 func (c *containsCondition) singleClause() string {
-	return fmt.Sprintf("(EXISTS (SELECT 1 FROM json_each(%s) WHERE value = ?))", jsonField(c.Field))
+	return fmt.Sprintf("(EXISTS (SELECT 1 FROM json_each(%s) WHERE json_each.value = ?))", jsonField(c.Field))
 }
 
 func (c *containsCondition) Clause() string {
@@ -253,16 +253,30 @@ func (c *containsCondition) Or(cl Clause) Clause {
 }
 
 // Contains returns a clause that checks if a list field contains a single value
-func Contains(field string, value any) Clause {
-	return &containsCondition{Field: field, combinator: andCombinator, values: []any{value}}
+func Contains[T string | number](field string, value T) Clause {
+	return ContainsAll(field, value)
 }
 
-// ContainsAll returns a clause that checks if a list field contains all the values
-func ContainsAll(field string, value ...any) Clause {
-	return &containsCondition{Field: field, combinator: andCombinator, values: value}
+func andCondition[T string | number](field string, values []T) Clause {
+	return newContainsCondition(field, andCombinator, values)
 }
 
-// ContainsAny returns a clause that checks if a list field contains any of the values
-func ContainsAny(field string, value ...any) Clause {
-	return &containsCondition{Field: field, combinator: orCombinator, values: value}
+func orCondition[T string | number](field string, values []T) Clause {
+	return newContainsCondition(field, orCombinator, values)
+}
+
+func newContainsCondition[T string | number](field string, combinator combinator, values []T) Clause {
+	anyValues := make([]any, len(values))
+	for i, tag := range values {
+		anyValues[i] = tag
+	}
+	return &containsCondition{Field: field, combinator: combinator, values: anyValues}
+}
+
+func ContainsAll[T string | number](field string, values ...T) Clause {
+	return andCondition(field, values)
+}
+
+func ContainsAny[T string | number](field string, values ...T) Clause {
+	return orCondition(field, values)
 }

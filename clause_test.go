@@ -245,7 +245,7 @@ func TestConditions(t *testing.T) {
 func TestContains(t *testing.T) {
 	c := Contains("$.list", "one")
 
-	expected := "(EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?))"
+	expected := "(EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?))"
 
 	if got := c.Clause(); got != expected {
 		t.Errorf("got = %v, want %v", got, expected)
@@ -255,7 +255,7 @@ func TestContains(t *testing.T) {
 func TestContainsAll(t *testing.T) {
 	c := ContainsAll("$.list", "one", "two")
 
-	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?)) AND (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?)))"
+	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)) AND (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)))"
 
 	if got := c.Clause(); got != expected {
 		t.Errorf("got = %v, want %v", got, expected)
@@ -265,7 +265,7 @@ func TestContainsAll(t *testing.T) {
 func TestContainsAny(t *testing.T) {
 	c := ContainsAny("$.list", "one", "two")
 
-	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?)) OR (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE value = ?)))"
+	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)) OR (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)))"
 
 	if got := c.Clause(); got != expected {
 		t.Errorf("got = %v, want %v", got, expected)
