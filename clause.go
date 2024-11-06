@@ -53,12 +53,16 @@ type combinatorClause struct {
 }
 
 func (c *combinatorClause) Clause() string {
+	if len(c.clauses) == 0 {
+		return "(1 == 1)"
+	}
 	joiner := fmt.Sprintf(" %s ", string(c.combinator))
+
 	return fmt.Sprintf("(%s)", strings.Join(c.clauseStrings, joiner))
 }
 
 func (c *combinatorClause) Values() []any {
-	//valuesOne := slices.Clone(c.clauseOne.Values())
+	// valuesOne := slices.Clone(c.clauseOne.Values())
 	return c.values
 }
 

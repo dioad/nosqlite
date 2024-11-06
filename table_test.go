@@ -324,6 +324,45 @@ func TestTableSelectMany(t *testing.T) {
 	}
 }
 
+func TestTableSelectManyEmptyClause(t *testing.T) {
+
+	ctx := context.Background()
+
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](ctx, t, store)
+
+	foos := []Foo{{
+		Name: "select-many",
+		Bar: Bar{
+			Name: "one",
+		},
+	}, {
+		Name: "select-many",
+		Bar: Bar{
+			Name: "two",
+		},
+	}}
+
+	for _, tag := range foos {
+		err := table.Insert(ctx, tag)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// c := Equal("$.name", "select-many")
+	c := And()
+	vals, err := table.QueryMany(ctx, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vals) != 2 {
+		t.Errorf("expected 2 got %d", len(vals))
+	}
+}
+
 func TestTableInjectValue(t *testing.T) {
 	ctx := context.Background()
 
@@ -491,7 +530,7 @@ func TestTableSelectContainsAll(t *testing.T) {
 		}
 	}
 
-	//condition := ContainsAll("$.list", "two", "three")
+	// condition := ContainsAll("$.list", "two", "three")
 	condition := ContainsAll("$.list", "two")
 
 	vals, err := table.QueryMany(ctx, condition)
