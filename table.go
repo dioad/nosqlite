@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/dioad/reflect"
-	"github.com/pkg/errors"
 )
 
 // Table represents a table in the database
@@ -93,7 +93,7 @@ func (n *Table[T]) CreateIndexes(ctx context.Context, indexes ...[]string) ([]st
 	for i, fields := range indexes {
 		indexNames[i], err = n.CreateIndex(ctx, fields...)
 		if err != nil {
-			return indexNames, errors.Wrap(err, fmt.Sprintf("failed to create index for fields %v", fields))
+			return indexNames, fmt.Errorf("failed to create index for fields %v: %w", fields, err)
 		}
 	}
 	return indexNames, nil
@@ -160,6 +160,10 @@ func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	return &result, err
 }
 
+func (n *Table[T]) All(ctx context.Context) ([]T, error) {
+	return n.QueryMany(ctx, All())
+}
+
 // QueryMany returns multiple items from the table
 // can we use http://doug-martin.github.io/goqu/ for this?
 func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
@@ -175,7 +179,7 @@ func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		err = rows.Scan(&data)

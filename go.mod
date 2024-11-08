@@ -5,8 +5,7 @@ go 1.22.1
 require (
 	github.com/dioad/reflect v0.1.0
 	github.com/glebarez/go-sqlite v1.22.0
-	github.com/pkg/errors v0.9.1
-	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
+	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
 )
 
 require (

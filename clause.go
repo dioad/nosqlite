@@ -150,6 +150,10 @@ func GreaterThanOrEqual[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: greaterThanOrEqualOperator}
 }
 
+func All() Clause {
+	return And()
+}
+
 // NotEqual returns a clause that checks if a field is not equal to a value
 func NotEqual[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: notEqualsOperator}

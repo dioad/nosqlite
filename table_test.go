@@ -19,6 +19,13 @@ type Foo struct {
 	List []string `json:"list,omitempty"`
 }
 
+type ID struct {
+	ID string `json:"id,omitempty"`
+}
+
+type IDOne ID
+type IDTwo ID
+
 func helperTempFile(t *testing.T) string {
 	t.Helper()
 
@@ -119,7 +126,7 @@ func TestJoinEscapedFieldNames(t *testing.T) {
 	}
 }
 
-func TestTableInsert(t *testing.T) {
+func TestTable_Insert(t *testing.T) {
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
@@ -150,7 +157,7 @@ func TestTableInsert(t *testing.T) {
 	}
 }
 
-func TestTableUpdate(t *testing.T) {
+func TestTable_Update(t *testing.T) {
 
 	ctx := context.Background()
 
@@ -204,7 +211,7 @@ func TestTableUpdate(t *testing.T) {
 	}
 }
 
-func TestTableCreateIndex(t *testing.T) {
+func TestTable_CreateIndex(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -228,7 +235,7 @@ func TestTableCreateIndex(t *testing.T) {
 	}
 }
 
-func TestTableCount(t *testing.T) {
+func TestTable_Count(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -266,7 +273,7 @@ func TestTableCount(t *testing.T) {
 	}
 }
 
-func TestTableSelectNoResults(t *testing.T) {
+func TestTable_QueryOneNoResults(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -285,7 +292,7 @@ func TestTableSelectNoResults(t *testing.T) {
 	}
 }
 
-func TestTableSelectMany(t *testing.T) {
+func TestTable_QueryMany(t *testing.T) {
 
 	ctx := context.Background()
 
@@ -324,7 +331,7 @@ func TestTableSelectMany(t *testing.T) {
 	}
 }
 
-func TestTableSelectManyEmptyClause(t *testing.T) {
+func TestTable_All(t *testing.T) {
 
 	ctx := context.Background()
 
@@ -352,9 +359,7 @@ func TestTableSelectManyEmptyClause(t *testing.T) {
 		}
 	}
 
-	// c := Equal("$.name", "select-many")
-	c := And()
-	vals, err := table.QueryMany(ctx, c)
+	vals, err := table.All(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +368,7 @@ func TestTableSelectManyEmptyClause(t *testing.T) {
 	}
 }
 
-func TestTableInjectValue(t *testing.T) {
+func TestTable_QueryOneInjectInValue(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -393,7 +398,7 @@ func TestTableInjectValue(t *testing.T) {
 	}
 }
 
-func TestTableInjectField(t *testing.T) {
+func TestTable_QueryOneInjectInField(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -419,7 +424,7 @@ func TestTableInjectField(t *testing.T) {
 	}
 }
 
-func TestTableDelete(t *testing.T) {
+func TestTable_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -455,7 +460,7 @@ func TestTableDelete(t *testing.T) {
 	}
 }
 
-func TestTableSelectIn(t *testing.T) {
+func TestTable_QueryManyIn(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -500,7 +505,7 @@ func TestTableSelectIn(t *testing.T) {
 	}
 }
 
-func TestTableSelectContainsAll(t *testing.T) {
+func TestTable_QueryManyContainsAll(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -542,7 +547,7 @@ func TestTableSelectContainsAll(t *testing.T) {
 	}
 }
 
-func TestTableSelectContainsAny(t *testing.T) {
+func TestTable_QueryManyContainsAny(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -583,7 +588,7 @@ func TestTableSelectContainsAny(t *testing.T) {
 	}
 }
 
-func TestTableSelectContains(t *testing.T) {
+func TestTable_QueryManyContains(t *testing.T) {
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -621,5 +626,55 @@ func TestTableSelectContains(t *testing.T) {
 	}
 	if len(vals) != 1 {
 		t.Errorf("expected 1 got %d", len(vals))
+	}
+}
+
+func TestDeleteFromTables(t *testing.T) {
+	var err error
+
+	ctx := context.Background()
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	tableOne := helperTable[IDOne](ctx, t, store)
+	tableTwo := helperTable[IDTwo](ctx, t, store)
+
+	id := "some-id"
+
+	itemOne := IDOne{ID: id}
+	itemTwo := IDTwo{ID: id}
+
+	err = tableOne.Insert(ctx, itemOne)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = tableTwo.Insert(ctx, itemTwo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tableOneItems, err := tableOne.All(ctx)
+	if len(tableOneItems) != 1 {
+		t.Fatalf("expected 1 got %d", len(tableOneItems))
+	}
+
+	tableTwoItems, err := tableTwo.All(ctx)
+	if len(tableTwoItems) != 1 {
+		t.Fatalf("expected 1 got %d", len(tableTwoItems))
+	}
+
+	err = tableTwo.Delete(ctx, Equal("$.id", id))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tableOneItems, err = tableOne.All(ctx)
+	if len(tableOneItems) != 1 {
+		t.Fatalf("expected 1 got %d", len(tableOneItems))
+	}
+
+	tableTwoItems, err = tableTwo.All(ctx)
+	if len(tableTwoItems) != 0 {
+		t.Fatalf("expected 0 got %d", len(tableTwoItems))
 	}
 }
