@@ -147,7 +147,8 @@ func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	var data string
 
 	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause())
-	row := n.store.db.QueryRowContext(ctx, queryStatement, clause.Values()...)
+	values := clause.Values()
+	row := n.store.db.QueryRowContext(ctx, queryStatement, values...)
 	err := row.Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

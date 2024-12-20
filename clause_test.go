@@ -49,8 +49,8 @@ func TestAndClauses(t *testing.T) {
 		t.Errorf("got = %v, want %v", got, want)
 	}
 
-	if got := c.Values(); got[0] != "1" || got[1] != "test" {
-		t.Errorf("got = %v, want %v", got, []string{"1", "test"})
+	if got := c.Values(); got[0] != 1 || got[1] != "test" {
+		t.Errorf("got = %v, want %v", got, []any{1, "test"})
 	}
 }
 
@@ -73,8 +73,8 @@ func TestAndClausesFluent(t *testing.T) {
 		t.Errorf("got = %v, want %v", got, want)
 	}
 
-	if got := c.Values(); got[0] != "1" || got[1] != "test" {
-		t.Errorf("got = %v, want %v", got, []string{"1", "test"})
+	if got := c.Values(); got[0] != 1 || got[1] != "test" {
+		t.Errorf("got = %v, want %v", got, []any{1, "test"})
 	}
 }
 
@@ -97,8 +97,8 @@ func TestOrClauses(t *testing.T) {
 		t.Errorf("got = %v, want %v", got, want)
 	}
 
-	if got := c.Values(); got[0] != "1" || got[1] != "test" {
-		t.Errorf("got = %v, want %v", got, []string{"1", "test"})
+	if got := c.Values(); got[0] != 1 || got[1] != "test" {
+		t.Errorf("got = %v, want %v", got, []any{1, "test"})
 	}
 }
 
@@ -121,8 +121,8 @@ func TestOrClausesFluent(t *testing.T) {
 		t.Errorf("got = %v, want %v", got, want)
 	}
 
-	if got := c.Values(); got[0] != "1" || got[1] != "test" {
-		t.Errorf("got = %v, want %v", got, []string{"1", "test"})
+	if got := c.Values(); got[0] != 1 || got[1] != "test" {
+		t.Errorf("got = %v, want %v", got, []any{1, "test"})
 	}
 }
 
@@ -151,8 +151,8 @@ func TestAndOrClauses(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	if got := c2.Values(); got[0] != "1" || got[1] != "test" || got[2] != "bar" {
-		t.Errorf("got %v, want %v", got, []string{"1", "test", "bar"})
+	if got := c2.Values(); got[0] != 1 || got[1] != "test" || got[2] != "bar" {
+		t.Errorf("got %v, want %v", got, []any{1, "test", "bar"})
 	}
 }
 
@@ -176,15 +176,13 @@ func TestAndOrClausesFluent(t *testing.T) {
 	want := "(((data->>'id' = ?) AND (data->>'name' = ?)) OR (data->>'foo' = ?))"
 
 	c := clauseOne.And(clauseTwo).Or(clauseThree)
-	//c1 := And(clauseOne, clauseTwo)
-	//c2 := Or(c1, clauseThree)
 
 	if got := c.Clause(); got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	if got := c.Values(); got[0] != "1" || got[1] != "test" || got[2] != "bar" {
-		t.Errorf("got %v, want %v", got, []string{"1", "test", "bar"})
+	if got := c.Values(); got[0] != 1 || got[1] != "test" || got[2] != "bar" {
+		t.Errorf("got %v, want %v", got, []any{1, "test", "bar"})
 	}
 }
 
@@ -192,42 +190,42 @@ func TestConditions(t *testing.T) {
 	tests := []struct {
 		condition      Clause
 		expectedClause string
-		expectedValues []string
+		expectedValues []any
 	}{
 		{
 			condition:      Equal("id", 1),
 			expectedClause: "(data->>'id' = ?)",
-			expectedValues: []string{"1"},
+			expectedValues: []any{1},
 		},
 		{
 			condition:      GreaterThan("id", 1),
 			expectedClause: "(data->>'id' > ?)",
-			expectedValues: []string{"1"},
+			expectedValues: []any{1},
 		},
 		{
 			condition:      LessThan("id", 1),
 			expectedClause: "(data->>'id' < ?)",
-			expectedValues: []string{"1"},
+			expectedValues: []any{1},
 		},
 		{
 			condition:      LessThanOrEqual("id", 1),
 			expectedClause: "(data->>'id' <= ?)",
-			expectedValues: []string{"1"},
+			expectedValues: []any{1},
 		},
 		{
 			condition:      GreaterThanOrEqual("id", 1),
 			expectedClause: "(data->>'id' >= ?)",
-			expectedValues: []string{"1"},
+			expectedValues: []any{1},
 		},
 		{
 			condition:      NotEqual("id", 1),
 			expectedClause: "(data->>'id' != ?)",
-			expectedValues: []string{"1"},
+			expectedValues: []any{1},
 		},
 		{
 			condition:      Like("id", "%hello%"),
 			expectedClause: "(data->>'id' LIKE ?)",
-			expectedValues: []string{"%hello%"},
+			expectedValues: []any{"%hello%"},
 		},
 	}
 
@@ -266,6 +264,26 @@ func TestContainsAny(t *testing.T) {
 	c := ContainsAny("$.list", "one", "two")
 
 	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)) OR (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)))"
+
+	if got := c.Clause(); got != expected {
+		t.Errorf("got = %v, want %v", got, expected)
+	}
+}
+
+func TestTrueClause(t *testing.T) {
+	c := True("$.approved")
+
+	expected := "(data->>'$.approved' = ?)"
+
+	if got := c.Clause(); got != expected {
+		t.Errorf("got = %v, want %v", got, expected)
+	}
+}
+
+func TestFalseClause(t *testing.T) {
+	c := False("$.approved")
+
+	expected := "(data->>'$.approved' = ?)"
 
 	if got := c.Clause(); got != expected {
 		t.Errorf("got = %v, want %v", got, expected)

@@ -103,7 +103,7 @@ func Or(clauses ...Clause) Clause {
 	return combine(orCombinator, clauses...)
 }
 
-type condition[T string | number] struct {
+type condition[T string | number | bool] struct {
 	Field    string
 	Value    T
 	Operator operator
@@ -114,7 +114,15 @@ func (c *condition[T]) Clause() string {
 }
 
 func (c *condition[T]) Values() []any {
-	return []any{fmt.Sprintf("%v", c.Value)}
+	switch v := any(c.Value).(type) {
+	case string:
+		return []any{v}
+	case int, float64, bool:
+		return []any{v}
+	default:
+		return []any{fmt.Sprintf("%v", v)}
+	}
+	// return []any{fmt.Sprintf("%v", c.Value)}
 }
 
 func (c *condition[T]) And(cl Clause) Clause {
@@ -126,8 +134,16 @@ func (c *condition[T]) Or(cl Clause) Clause {
 }
 
 // Equal returns a clause that checks if a field is equal to a value
-func Equal[T string | number](field string, value T) Clause {
+func Equal[T string | number | bool](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: equalsOperator}
+}
+
+func True(field string) Clause {
+	return Equal(field, 1)
+}
+
+func False(field string) Clause {
+	return Equal(field, 0)
 }
 
 // LessThan returns a clause that checks if a field is less than a value
@@ -155,7 +171,7 @@ func All() Clause {
 }
 
 // NotEqual returns a clause that checks if a field is not equal to a value
-func NotEqual[T string | number](field string, value T) Clause {
+func NotEqual[T string | number | bool](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: notEqualsOperator}
 }
 
@@ -261,19 +277,19 @@ func (c *containsCondition) Or(cl Clause) Clause {
 }
 
 // Contains returns a clause that checks if a list field contains a single value
-func Contains[T string | number](field string, value T) Clause {
+func Contains[T string | number | bool](field string, value T) Clause {
 	return ContainsAll(field, value)
 }
 
-func andCondition[T string | number](field string, values []T) Clause {
+func andCondition[T string | number | bool](field string, values []T) Clause {
 	return newContainsCondition(field, andCombinator, values)
 }
 
-func orCondition[T string | number](field string, values []T) Clause {
+func orCondition[T string | number | bool](field string, values []T) Clause {
 	return newContainsCondition(field, orCombinator, values)
 }
 
-func newContainsCondition[T string | number](field string, combinator combinator, values []T) Clause {
+func newContainsCondition[T string | number | bool](field string, combinator combinator, values []T) Clause {
 	anyValues := make([]any, len(values))
 	for i, tag := range values {
 		anyValues[i] = tag
@@ -281,10 +297,10 @@ func newContainsCondition[T string | number](field string, combinator combinator
 	return &containsCondition{Field: field, combinator: combinator, values: anyValues}
 }
 
-func ContainsAll[T string | number](field string, values ...T) Clause {
+func ContainsAll[T string | number | bool](field string, values ...T) Clause {
 	return andCondition(field, values)
 }
 
-func ContainsAny[T string | number](field string, values ...T) Clause {
+func ContainsAny[T string | number | bool](field string, values ...T) Clause {
 	return orCondition(field, values)
 }

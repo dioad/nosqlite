@@ -17,6 +17,7 @@ type Foo struct {
 	Name string   `json:"name,omitempty"`
 	Bar  Bar      `json:"bar,omitempty"`
 	List []string `json:"list,omitempty"`
+	Bool bool     `json:"bool,omitempty"`
 }
 
 type ID struct {
@@ -398,6 +399,46 @@ func TestTable_QueryOneInjectInValue(t *testing.T) {
 	}
 }
 
+func TestTable_QueryBool(t *testing.T) {
+	ctx := context.Background()
+
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](ctx, t, store)
+
+	foo := Foo{
+		Name: "bool",
+		Bar: Bar{
+			Name: "one",
+		},
+		Bool: true,
+	}
+
+	err := table.Insert(ctx, foo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := table.QueryOne(ctx, True("$.bool"))
+	if err != nil {
+		t.Fatalf("expected  nil error, got %v", err)
+	}
+
+	if res == nil {
+		t.Fatal("expected non nil result")
+	}
+
+	res, err = table.QueryOne(ctx, False("$.bool"))
+	if err != nil {
+		t.Fatalf("expected  nil error, got %v", err)
+	}
+
+	if res != nil {
+		t.Fatal("expected  nil result")
+	}
+}
+
 func TestTable_QueryOneInjectInField(t *testing.T) {
 	ctx := context.Background()
 
@@ -676,5 +717,50 @@ func TestDeleteFromTables(t *testing.T) {
 	tableTwoItems, err = tableTwo.All(ctx)
 	if len(tableTwoItems) != 0 {
 		t.Fatalf("expected 0 got %d", len(tableTwoItems))
+	}
+}
+
+type ParentStruct struct {
+	ID    string
+	Child struct {
+		Value int
+	}
+}
+
+func TestUpdateWithEmbeddedStruct(t *testing.T) {
+	var err error
+
+	ctx := context.Background()
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[ParentStruct](ctx, t, store)
+
+	obj := ParentStruct{
+		ID: "some-id",
+	}
+
+	err = table.Insert(ctx, obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	obj.Child.Value = 13
+
+	err = table.Update(ctx, Equal("$.ID", "some-id"), obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := table.QueryOne(ctx, Equal("$.ID", "some-id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil {
+		t.Fatal("expected result got nil")
+	}
+
+	if res.Child.Value != 13 {
+		t.Fatalf("expected 13 got %d", res.Child.Value)
 	}
 }
