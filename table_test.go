@@ -437,6 +437,15 @@ func TestTable_QueryBool(t *testing.T) {
 	if res != nil {
 		t.Fatal("expected  nil result")
 	}
+
+	res, err = table.QueryOne(ctx, Equal("$.bool", true))
+	if err != nil {
+		t.Fatalf("expected  nil error, got %v", err)
+	}
+
+	if res == nil {
+		t.Fatal("expected non nil result")
+	}
 }
 
 func TestTable_QueryOneInjectInField(t *testing.T) {
