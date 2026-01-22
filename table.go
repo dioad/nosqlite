@@ -11,13 +11,13 @@ import (
 	"github.com/dioad/reflect"
 )
 
-// TableWithTx represents a table within a transaction
+// TableWithTx represents a table within the scope of a transaction.
 type TableWithTx[T any] struct {
 	tx   *Transaction
 	name string
 }
 
-// WithTransaction returns a TableWithTx that operates within the given transaction
+// WithTransaction returns a TableWithTx that operates within the given transaction.
 func (n *Table[T]) WithTransaction(tx *Transaction) *TableWithTx[T] {
 	return &TableWithTx[T]{
 		tx:   tx,
@@ -197,11 +197,12 @@ func (t *TableWithTx[T]) Count(ctx context.Context) (uint64, error) {
 	return c, nil
 }
 
-// Table represents a table in the database
+// Table represents a table in the document store.
+// It uses a generic type T to represent the document structure.
 type Table[T any] struct {
 	store *Store
 
-	// Name of the table
+	// Name is the name of the table in SQLite.
 	Name string
 }
 
@@ -213,7 +214,8 @@ func tableName[T any]() string {
 	return strings.ToLower(nameNoDots)
 }
 
-// NewTable creates a new table with the given type T
+// NewTable creates a new Table with the given type T.
+// It automatically creates the table in the database if it doesn't exist.
 func NewTable[T any](ctx context.Context, store *Store) (*Table[T], error) {
 	table := &Table[T]{
 		store: store,
@@ -254,7 +256,7 @@ func (n *Table[T]) indexName(fields ...string) string {
 	return constructIndexName(n.Name, fields...)
 }
 
-// CreateTable creates the table if it does not exist
+// CreateTable creates the table in the database if it does not already exist.
 func (n *Table[T]) CreateTable(ctx context.Context) error {
 	return n.createTableWithName(ctx, n.Name)
 }
@@ -273,6 +275,8 @@ func (n *Table[T]) Count(ctx context.Context) (uint64, error) {
 	return c, err
 }
 
+// CreateIndexes creates multiple indexes on the table.
+// Each element in the indexes slice is a slice of field names to be indexed together.
 func (n *Table[T]) CreateIndexes(ctx context.Context, indexes ...[]string) ([]string, error) {
 	var err error
 	indexNames := make([]string, len(indexes))
@@ -285,7 +289,7 @@ func (n *Table[T]) CreateIndexes(ctx context.Context, indexes ...[]string) ([]st
 	return indexNames, nil
 }
 
-// CreateIndex creates an index on the given fields
+// CreateIndex creates an index on the specified fields of the document.
 func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, error) {
 	indexName := n.indexName(fields...)
 
@@ -386,6 +390,7 @@ func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	return &result, nil
 }
 
+// All returns all items from the table.
 func (n *Table[T]) All(ctx context.Context) ([]T, error) {
 	return n.QueryMany(ctx, All())
 }

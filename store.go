@@ -8,17 +8,20 @@ import (
 	_ "github.com/glebarez/go-sqlite/compat"
 )
 
-// Store represents a store for the database
+// Store represents a document store backed by SQLite.
+// It manages the database connection and provides methods for starting transactions and managing tables.
 type Store struct {
 	db *sql.DB
 }
 
-// Transaction represents a database transaction
+// Transaction represents an active database transaction.
+// It provides methods for executing queries and managing transactions.
 type Transaction struct {
 	tx *sql.Tx
 }
 
-// NewStore creates a new store with the given file path
+// NewStore creates a new Store with a connection to a SQLite database at the given file path.
+// It also sets some recommended PRAGMAs for performance and concurrency (busy_timeout, synchronous=NORMAL, journal_mode=WAL).
 func NewStore(filePath string) (*Store, error) {
 	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
@@ -28,7 +31,8 @@ func NewStore(filePath string) (*Store, error) {
 	return NewStoreWithDB(db)
 }
 
-// NewStoreWithDB creates a new store with the given database
+// NewStoreWithDB creates a new Store using an existing *sql.DB connection.
+// It also sets some recommended PRAGMAs for performance and concurrency.
 func NewStoreWithDB(db *sql.DB) (*Store, error) {
 	// PRAGMA busy_timeout = 5000;
 	_, err := db.Exec("PRAGMA busy_timeout = 5000")
@@ -51,17 +55,17 @@ func NewStoreWithDB(db *sql.DB) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
-// Ping checks if the database connection is alive
+// Ping verifies the connection to the database is still alive.
 func (s *Store) Ping() error {
 	return s.db.Ping()
 }
 
-// Close closes the database connection
+// Close closes the underlying database connection.
 func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// BeginTx starts a new transaction with the given context and options
+// BeginTx starts a new transaction with the provided context and options.
 func (s *Store) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Transaction, error) {
 	tx, err := s.db.BeginTx(ctx, opts)
 	if err != nil {
@@ -70,12 +74,12 @@ func (s *Store) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Transaction,
 	return &Transaction{tx: tx}, nil
 }
 
-// Begin starts a new transaction with default options
+// Begin starts a new transaction with default options.
 func (s *Store) Begin(ctx context.Context) (*Transaction, error) {
 	return s.BeginTx(ctx, nil)
 }
 
-// Commit commits the transaction
+// Commit commits the current transaction.
 func (tx *Transaction) Commit() error {
 	if err := tx.tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
@@ -83,7 +87,7 @@ func (tx *Transaction) Commit() error {
 	return nil
 }
 
-// Rollback rolls back the transaction
+// Rollback aborts the current transaction.
 func (tx *Transaction) Rollback() error {
 	if err := tx.tx.Rollback(); err != nil {
 		return fmt.Errorf("failed to rollback transaction: %w", err)
@@ -91,32 +95,32 @@ func (tx *Transaction) Rollback() error {
 	return nil
 }
 
-// Exec executes a query within the transaction
+// Exec executes a query that doesn't return rows.
 func (tx *Transaction) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return tx.tx.Exec(query, args...)
 }
 
-// Query executes a query within the transaction
+// Query executes a query that returns multiple rows.
 func (tx *Transaction) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	return tx.tx.Query(query, args...)
 }
 
-// QueryRow executes a query within the transaction
+// QueryRow executes a query that is expected to return at most one row.
 func (tx *Transaction) QueryRow(query string, args ...interface{}) *sql.Row {
 	return tx.tx.QueryRow(query, args...)
 }
 
-// ExecContext executes a query within the transaction with context
+// ExecContext executes a query that doesn't return rows, with context support.
 func (tx *Transaction) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	return tx.tx.ExecContext(ctx, query, args...)
 }
 
-// QueryContext executes a query within the transaction with context
+// QueryContext executes a query that returns multiple rows, with context support.
 func (tx *Transaction) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	return tx.tx.QueryContext(ctx, query, args...)
 }
 
-// QueryRowContext executes a query within the transaction with context
+// QueryRowContext executes a query that is expected to return at most one row, with context support.
 func (tx *Transaction) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	return tx.tx.QueryRowContext(ctx, query, args...)
 }

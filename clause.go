@@ -30,14 +30,17 @@ type number interface {
 	constraints.Integer | constraints.Float
 }
 
-// Clause represents a clause in a query
+// Clause represents a query condition that can be converted to SQL.
+// It provides a fluent interface for combining multiple conditions using AND and OR operators.
 type Clause interface {
-	// Clause returns the clause as a string using parameters for values
+	// Clause returns the SQL representation of the condition using '?' as placeholders for values.
 	Clause() string
-	// Values returns the values to assign to the parameters in the clause
+	// Values returns the arguments to be used with the SQL query.
 	Values() []any
 
+	// And combines this clause with another one using the AND operator.
 	And(c Clause) Clause
+	// Or combines this clause with another one using the OR operator.
 	Or(c Clause) Clause
 }
 
@@ -93,12 +96,13 @@ func combine(combinator combinator, clauses ...Clause) Clause {
 	}
 }
 
-// And returns a clause that combines clauses with an AND operator
+// And returns a Clause that combines multiple clauses with an AND operator.
+// If no clauses are provided, it returns a clause that always evaluates to true.
 func And(clauses ...Clause) Clause {
 	return combine(andCombinator, clauses...)
 }
 
-// Or returns a clause that combines clauses with an OR operator
+// Or returns a Clause that combines multiple clauses with an OR operator.
 func Or(clauses ...Clause) Clause {
 	return combine(orCombinator, clauses...)
 }
@@ -133,50 +137,53 @@ func (c *condition[T]) Or(cl Clause) Clause {
 	return Or(c, cl)
 }
 
-// Equal returns a clause that checks if a field is equal to a value
+// Equal returns a Clause that checks if a field is equal to a value.
 func Equal[T string | number | bool](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: equalsOperator}
 }
 
+// True returns a Clause that checks if a boolean field is true (equal to 1).
 func True(field string) Clause {
 	return Equal(field, 1)
 }
 
+// False returns a Clause that checks if a boolean field is false (equal to 0).
 func False(field string) Clause {
 	return Equal(field, 0)
 }
 
-// LessThan returns a clause that checks if a field is less than a value
+// LessThan returns a Clause that checks if a field is less than a value.
 func LessThan[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: lessThanOperator}
 }
 
-// GreaterThan returns a clause that checks if a field is greater than a value
+// GreaterThan returns a Clause that checks if a field is greater than a value.
 func GreaterThan[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: greaterThanOperator}
 }
 
-// LessThanOrEqual returns a clause that checks if a field is less than or equal to a value
+// LessThanOrEqual returns a Clause that checks if a field is less than or equal to a value.
 func LessThanOrEqual[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: lessThanOrEqualOperator}
 }
 
-// GreaterThanOrEqual returns a clause that checks if a field is greater than or equal to a value
+// GreaterThanOrEqual returns a Clause that checks if a field is greater than or equal to a value.
 func GreaterThanOrEqual[T string | number](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: greaterThanOrEqualOperator}
 }
 
+// All returns a Clause that matches all records.
 func All() Clause {
 	return And()
 }
 
-// NotEqual returns a clause that checks if a field is not equal to a value
+// NotEqual returns a Clause that checks if a field is not equal to a value.
 func NotEqual[T string | number | bool](field string, value T) Clause {
 	return &condition[T]{Field: field, Value: value, Operator: notEqualsOperator}
 }
 
-// Like returns a clause that checks if a field is like a value
-// It's up to the user to add the requisite % characters
+// Like returns a Clause that checks if a field matches a pattern using the SQL LIKE operator.
+// It's up to the user to add the requisite % characters to the value.
 func Like(field string, value string) Clause {
 	return &condition[string]{Field: field, Value: value, Operator: likeOperator}
 }
@@ -211,7 +218,7 @@ func (c *inCondition) Or(cl Clause) Clause {
 	return Or(c, cl)
 }
 
-// In returns a clause that checks if a field is in a list of values
+// In returns a Clause that checks if a field is in a list of values.
 func In(field string, values ...any) Clause {
 	return &inCondition{Field: field, values: values}
 }
@@ -238,7 +245,7 @@ func (c *betweenCondition[T]) Or(cl Clause) Clause {
 	return Or(c, cl)
 }
 
-// Between returns a clause that checks if a field is between two values
+// Between returns a Clause that checks if a field is between two values (inclusive).
 func Between[T string | number](field string, from, to T) Clause {
 	return &betweenCondition[T]{Field: field, From: from, To: to}
 }
@@ -276,7 +283,7 @@ func (c *containsCondition) Or(cl Clause) Clause {
 	return Or(c, cl)
 }
 
-// Contains returns a clause that checks if a list field contains a single value
+// Contains returns a Clause that checks if a JSON array field contains a single value.
 func Contains[T string | number | bool](field string, value T) Clause {
 	return ContainsAll(field, value)
 }
@@ -297,10 +304,12 @@ func newContainsCondition[T string | number | bool](field string, combinator com
 	return &containsCondition{Field: field, combinator: combinator, values: anyValues}
 }
 
+// ContainsAll returns a Clause that checks if a JSON array field contains all the given values.
 func ContainsAll[T string | number | bool](field string, values ...T) Clause {
 	return andCondition(field, values)
 }
 
+// ContainsAny returns a Clause that checks if a JSON array field contains any of the given values.
 func ContainsAny[T string | number | bool](field string, values ...T) Clause {
 	return orCondition(field, values)
 }

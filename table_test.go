@@ -773,3 +773,20 @@ func TestUpdateWithEmbeddedStruct(t *testing.T) {
 		t.Fatalf("expected 13 got %d", res.Child.Value)
 	}
 }
+
+func TestTable_CreateIndexes(t *testing.T) {
+	ctx := context.Background()
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](ctx, t, store)
+
+	names, err := table.CreateIndexes(ctx, []string{"$.name"}, []string{"$.id"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(names) != 2 {
+		t.Fatalf("expected 2 index names, got %d", len(names))
+	}
+}

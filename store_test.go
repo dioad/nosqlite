@@ -1,6 +1,9 @@
 package nosqlite
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestNewStore(t *testing.T) {
 	fileName := helperTempFile(t)
@@ -16,4 +19,25 @@ func TestNewStore(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+
+	err = store.Ping()
+	if err != nil {
+		t.Errorf("Ping failed: %v", err)
+	}
+}
+
+func TestStore_Begin(t *testing.T) {
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	ctx := context.Background()
+	tx, err := store.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	err = tx.Rollback()
+	if err != nil {
+		t.Errorf("Rollback failed: %v", err)
+	}
 }
