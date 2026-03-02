@@ -9,19 +9,19 @@ import (
 )
 
 type Bar struct {
-	Name string `json:"name,omitempty"`
+	Name string `json:"name,omitzero"`
 }
 
 type Foo struct {
-	Id   int      `json:"id,omitempty"`
-	Name string   `json:"name,omitempty"`
-	Bar  Bar      `json:"bar,omitempty"`
-	List []string `json:"list,omitempty"`
-	Bool bool     `json:"bool,omitempty"`
+	Id   int      `json:"id,omitzero"`
+	Name string   `json:"name,omitzero"`
+	Bar  Bar      `json:"bar"`
+	List []string `json:"list,omitzero"`
+	Bool bool     `json:"bool,omitzero"`
 }
 
 type ID struct {
-	ID string `json:"id,omitempty"`
+	ID string `json:"id,omitzero"`
 }
 
 type IDOne ID

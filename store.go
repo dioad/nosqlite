@@ -96,31 +96,31 @@ func (tx *Transaction) Rollback() error {
 }
 
 // Exec executes a query that doesn't return rows.
-func (tx *Transaction) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (tx *Transaction) Exec(query string, args ...any) (sql.Result, error) {
 	return tx.tx.Exec(query, args...)
 }
 
 // Query executes a query that returns multiple rows.
-func (tx *Transaction) Query(query string, args ...interface{}) (*sql.Rows, error) {
+func (tx *Transaction) Query(query string, args ...any) (*sql.Rows, error) {
 	return tx.tx.Query(query, args...)
 }
 
 // QueryRow executes a query that is expected to return at most one row.
-func (tx *Transaction) QueryRow(query string, args ...interface{}) *sql.Row {
+func (tx *Transaction) QueryRow(query string, args ...any) *sql.Row {
 	return tx.tx.QueryRow(query, args...)
 }
 
 // ExecContext executes a query that doesn't return rows, with context support.
-func (tx *Transaction) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (tx *Transaction) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	return tx.tx.ExecContext(ctx, query, args...)
 }
 
 // QueryContext executes a query that returns multiple rows, with context support.
-func (tx *Transaction) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (tx *Transaction) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	return tx.tx.QueryContext(ctx, query, args...)
 }
 
 // QueryRowContext executes a query that is expected to return at most one row, with context support.
-func (tx *Transaction) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+func (tx *Transaction) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
 	return tx.tx.QueryRowContext(ctx, query, args...)
 }
