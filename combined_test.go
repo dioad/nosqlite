@@ -73,11 +73,11 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to query transaction data with pagination: %v", err)
 		}
-		
+
 		if len(results) != 3 {
 			t.Errorf("Expected 3 results, got %d", len(results))
 		}
-		
+
 		// Verify we got items 8-10
 		expectedIds := []int{8, 9, 10}
 		for i, result := range results {
@@ -100,11 +100,11 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to query updated data with pagination: %v", err)
 		}
-		
+
 		if len(results) != 2 {
 			t.Errorf("Expected 2 results, got %d", len(results))
 		}
-		
+
 		// Verify we got items 1-2 with updated values
 		expectedIds := []int{1, 2}
 		for i, result := range results {
@@ -115,7 +115,7 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 				t.Errorf("Expected Bar.Name to be 'updated-in-tx', got '%s'", result.Bar.Name)
 			}
 		}
-		
+
 		// Query same items in main table - should have original values
 		mainResults, err := table.QueryManyWithPagination(ctx, And(
 			Equal("$.name", "main-data"),
@@ -124,11 +124,11 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to query main data with pagination: %v", err)
 		}
-		
+
 		if len(mainResults) != 2 {
 			t.Errorf("Expected 2 results from main table, got %d", len(mainResults))
 		}
-		
+
 		for _, result := range mainResults {
 			if result.Bar.Name != "original" {
 				t.Errorf("Expected Bar.Name to be 'original' in main table, got '%s'", result.Bar.Name)
@@ -143,7 +143,7 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to query with pagination from main table: %v", err)
 		}
-		
+
 		if len(results) != 0 {
 			t.Errorf("Expected 0 results from main table for tx-data, got %d", len(results))
 		}
@@ -156,7 +156,7 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to query all data in transaction: %v", err)
 		}
-		
+
 		if len(results) != 15 {
 			t.Errorf("Expected 15 total results in transaction, got %d", len(results))
 		}
@@ -175,21 +175,21 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to query all data after commit: %v", err)
 		}
-		
+
 		if len(results) != 15 {
 			t.Errorf("Expected 15 total results after commit, got %d", len(results))
 		}
-		
+
 		// Verify tx-data is now visible
 		txResults, err := table.QueryManyWithPagination(ctx, Equal("$.name", "tx-data"), 3, 2)
 		if err != nil {
 			t.Fatalf("Failed to query tx-data after commit: %v", err)
 		}
-		
+
 		if len(txResults) != 3 {
 			t.Errorf("Expected 3 tx-data results after commit, got %d", len(txResults))
 		}
-		
+
 		// Verify updates are now visible
 		updatedResults, err := table.QueryManyWithPagination(ctx, And(
 			Equal("$.name", "main-data"),
@@ -198,7 +198,7 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to query updated data after commit: %v", err)
 		}
-		
+
 		if len(updatedResults) != 3 {
 			t.Errorf("Expected 3 updated results after commit, got %d", len(updatedResults))
 		}
@@ -272,7 +272,7 @@ func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to query data in transaction: %v", err)
 	}
-	
+
 	if len(results) != 3 {
 		t.Errorf("Expected 3 results in transaction, got %d", len(results))
 	}
@@ -290,27 +290,27 @@ func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to query data after rollback: %v", err)
 		}
-		
+
 		if len(results) != 0 {
 			t.Errorf("Expected 0 results after rollback, got %d", len(results))
 		}
-		
+
 		// Verify original data is intact
 		origResults, err := table.QueryManyWithPagination(ctx, Equal("$.bar.name", "original"), 0, 0)
 		if err != nil {
 			t.Fatalf("Failed to query original data after rollback: %v", err)
 		}
-		
+
 		if len(origResults) != 5 {
 			t.Errorf("Expected 5 original results after rollback, got %d", len(origResults))
 		}
-		
+
 		// Verify total count is still 5
 		count, err := table.Count(ctx)
 		if err != nil {
 			t.Fatalf("Failed to count data after rollback: %v", err)
 		}
-		
+
 		if count != 5 {
 			t.Errorf("Expected count of 5 after rollback, got %d", count)
 		}
