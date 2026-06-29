@@ -496,9 +496,12 @@ func TestTable_Delete(t *testing.T) {
 
 	c := Equal("$.name", "delete")
 
-	err = table.Delete(ctx, c)
+	rowsAffected, err := table.Delete(ctx, c)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if rowsAffected != 1 {
+		t.Fatalf("expected 1 row affected, got %d", rowsAffected)
 	}
 
 	res, err := table.QueryOne(ctx, c)
@@ -507,6 +510,15 @@ func TestTable_Delete(t *testing.T) {
 	}
 	if res != nil {
 		t.Fatal("expected nil result")
+	}
+
+	// Verify count is 0 when no rows match
+	rowsAffected, err = table.Delete(ctx, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rowsAffected != 0 {
+		t.Fatalf("expected 0 rows affected, got %d", rowsAffected)
 	}
 }
 
@@ -713,7 +725,7 @@ func TestDeleteFromTables(t *testing.T) {
 		t.Fatalf("expected 1 got %d", len(tableTwoItems))
 	}
 
-	err = tableTwo.Delete(ctx, Equal("$.id", id))
+	_, err = tableTwo.Delete(ctx, Equal("$.id", id))
 	if err != nil {
 		t.Fatal(err)
 	}

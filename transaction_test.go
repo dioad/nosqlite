@@ -197,7 +197,7 @@ func TestTableWithTx_CRUD(t *testing.T) {
 	}
 
 	// Test Delete
-	err = tableTx.Delete(ctx, Equal("$.name", "tx-crud"))
+	_, err = tableTx.Delete(ctx, Equal("$.name", "tx-crud"))
 	if err != nil {
 		t.Fatalf("Failed to delete data in transaction: %v", err)
 	}
