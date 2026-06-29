@@ -159,31 +159,24 @@ func (t *TableWithTx[T]) Update(ctx context.Context, clause Clause, newVal T) er
 }
 
 // Delete removes items from the table within the transaction.
-func (t *TableWithTx[T]) Delete(ctx context.Context, clause Clause) error {
-	// Check if context is already canceled
+// Returns the number of rows deleted and any error.
+func (t *TableWithTx[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
 	if ctx.Err() != nil {
-		return fmt.Errorf("context error before delete: %w", ctx.Err())
+		return 0, fmt.Errorf("context error before delete: %w", ctx.Err())
 	}
 
 	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", t.name, clause.Clause())
 	result, err := t.tx.ExecContext(ctx, deleteStatement, clause.Values()...)
 	if err != nil {
-		return fmt.Errorf("failed to delete data: %w", err)
+		return 0, fmt.Errorf("failed to delete data: %w", err)
 	}
 
-	// Check if any rows were affected (optional)
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
-	if rowsAffected == 0 {
-		// No rows were deleted, but this isn't necessarily an error
-		// The caller can check if the delete affected any rows if needed
-		return nil
-	}
-
-	return nil
+	return rowsAffected, nil
 }
 
 // Count returns the number of items in the table within the transaction.
@@ -315,32 +308,24 @@ func (n *Table[T]) hasIndex(ctx context.Context, indexName string) (bool, error)
 }
 
 // Delete removes items from the table that match the given clause.
-// Returns nil if successful, even if no rows were deleted.
-func (n *Table[T]) Delete(ctx context.Context, clause Clause) error {
-	// Check if context is already canceled
+// Returns the number of rows deleted and any error.
+func (n *Table[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
 	if ctx.Err() != nil {
-		return fmt.Errorf("context error before delete: %w", ctx.Err())
+		return 0, fmt.Errorf("context error before delete: %w", ctx.Err())
 	}
 
 	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause())
 	result, err := n.store.db.ExecContext(ctx, deleteStatement, clause.Values()...)
 	if err != nil {
-		return fmt.Errorf("failed to delete data: %w", err)
+		return 0, fmt.Errorf("failed to delete data: %w", err)
 	}
 
-	// Check if any rows were affected (optional)
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
-	if rowsAffected == 0 {
-		// No rows were deleted, but this isn't necessarily an error
-		// The caller can check if the delete affected any rows if needed
-		return nil
-	}
-
-	return nil
+	return rowsAffected, nil
 }
 
 // Insert adds a new item to the table.
