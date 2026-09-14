@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+	"time"
 
 	_ "github.com/glebarez/go-sqlite/compat"
 )
@@ -20,28 +22,149 @@ type Transaction struct {
 	tx *sql.Tx
 }
 
+// SynchronousMode controls SQLite's synchronous pragma, which trades commit
+// durability for write throughput. See
+// https://www.sqlite.org/pragma.html#pragma_synchronous.
+type SynchronousMode string
+
+const (
+	SynchronousOff    SynchronousMode = "OFF"
+	SynchronousNormal SynchronousMode = "NORMAL"
+	SynchronousFull   SynchronousMode = "FULL"
+	SynchronousExtra  SynchronousMode = "EXTRA"
+)
+
+const (
+	defaultBusyTimeout = 5 * time.Second
+	defaultSynchronous = SynchronousNormal
+)
+
+// storeConfig holds the tunable pragma values a Store is opened with. Zero
+// value is meaningless; always build one from newStoreConfig so the defaults
+// are applied.
+type storeConfig struct {
+	busyTimeout time.Duration
+	synchronous SynchronousMode
+}
+
+func newStoreConfig(opts []Option) storeConfig {
+	cfg := storeConfig{
+		busyTimeout: defaultBusyTimeout,
+		synchronous: defaultSynchronous,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
+}
+
+// Option configures tunable pragma values for a Store created by NewStore or
+// NewStoreWithDB. Only busy_timeout and synchronous are configurable -
+// journal_mode and the transaction locking mode are fixed (see
+// fixedDSNParams) because they are load-bearing for correctness under
+// concurrent access, not a performance preference.
+type Option func(*storeConfig)
+
+// WithBusyTimeout overrides the busy_timeout pragma applied to every
+// connection the Store opens: how long a connection waits for a lock held by
+// another writer before giving up with SQLITE_BUSY. Defaults to 5 seconds.
+func WithBusyTimeout(d time.Duration) Option {
+	return func(c *storeConfig) { c.busyTimeout = d }
+}
+
+// WithSynchronous overrides the synchronous pragma applied to every
+// connection the Store opens. Defaults to SynchronousNormal, which is safe
+// (durable across an application crash) and, combined with the fixed
+// journal_mode=WAL, does not fsync on every commit the way FULL does.
+func WithSynchronous(mode SynchronousMode) Option {
+	return func(c *storeConfig) { c.synchronous = mode }
+}
+
+// fixedDSNParams are applied via DSN query parameters (rather than a PRAGMA
+// executed after Open) because SQLite pragmas are per-connection state:
+// database/sql opens additional physical connections under concurrent load,
+// and a PRAGMA run once via db.Exec only lands on whichever single pooled
+// connection happened to run it. The glebarez/go-sqlite driver applies
+// _pragma DSN parameters to every connection it opens, so this is the only
+// way to guarantee these are in effect on all of them.
+//
+// These two are fixed rather than exposed as Options because they are
+// correctness-critical, not tunable:
+//
+// journal_mode=WAL is required for the concurrency this store is designed
+// for (readers do not block writers).
+//
+// _txlock=immediate switches every transaction from SQLite's default
+// deferred mode to BEGIN IMMEDIATE, which acquires the write lock up front
+// instead of at the first write statement. Callers here commonly run a
+// check-then-write transaction (read a row, then update/delete it) - under
+// a deferred transaction, several such transactions can all start from the
+// same read snapshot and then race to upgrade to a writer; the losers hit
+// SQLITE_BUSY from a stale-snapshot conflict that busy_timeout cannot
+// resolve by waiting, because retrying the same doomed transaction never
+// succeeds. BEGIN IMMEDIATE instead serialises transactions at the start
+// (queuing on the write lock, which busy_timeout legitimately waits out),
+// so each one always reads a fresh snapshot before writing. Allowing a
+// caller to override this back to deferred would silently reintroduce that
+// bug, so it is not an Option.
+const fixedDSNParams = "_pragma=journal_mode(WAL)&_txlock=immediate"
+
+// pragmaDSN renders cfg's tunable pragmas and the fixed correctness-critical
+// settings as DSN query parameters.
+func pragmaDSN(cfg storeConfig) string {
+	return fmt.Sprintf(
+		"_pragma=busy_timeout(%d)&_pragma=synchronous(%s)&%s",
+		cfg.busyTimeout.Milliseconds(), cfg.synchronous, fixedDSNParams,
+	)
+}
+
 // NewStore creates a new Store with a connection to a SQLite database at the given file path.
-// It also sets some recommended PRAGMAs for performance and concurrency (busy_timeout, synchronous=NORMAL, journal_mode=WAL).
-func NewStore(filePath string) (*Store, error) {
-	db, err := sql.Open("sqlite3", filePath)
+// It also sets some recommended PRAGMAs for performance and concurrency (busy_timeout, synchronous=NORMAL, journal_mode=WAL);
+// use WithBusyTimeout and WithSynchronous to override the tunable ones.
+func NewStore(filePath string, opts ...Option) (*Store, error) {
+	cfg := newStoreConfig(opts)
+
+	dsn := filePath
+	if strings.Contains(dsn, "?") {
+		dsn += "&" + pragmaDSN(cfg)
+	} else {
+		dsn += "?" + pragmaDSN(cfg)
+	}
+
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	return NewStoreWithDB(db)
+	return newStoreWithDB(db, cfg)
 }
 
 // NewStoreWithDB creates a new Store using an existing *sql.DB connection.
-// It also sets some recommended PRAGMAs for performance and concurrency.
-func NewStoreWithDB(db *sql.DB) (*Store, error) {
-	// PRAGMA busy_timeout = 5000;
-	_, err := db.Exec("PRAGMA busy_timeout = 5000")
+// It also sets some recommended PRAGMAs for performance and concurrency;
+// use WithBusyTimeout and WithSynchronous to override the tunable ones.
+//
+// These are applied via db.Exec, which - unlike the DSN parameters NewStore
+// uses - only guarantees the pragma is in effect on the single connection
+// that happens to run this Exec. Callers that open db themselves and expect
+// these pragmas under concurrent access should set them via DSN parameters
+// instead (see pragmaDSN), or use NewStore. This also cannot restore
+// _txlock=immediate, since that is a connection-level DSN setting rather
+// than a PRAGMA and so has no db.Exec equivalent; a db passed in here
+// without it is exposed to the stale-snapshot SQLITE_BUSY races described
+// on fixedDSNParams under concurrent check-then-write transactions.
+func NewStoreWithDB(db *sql.DB, opts ...Option) (*Store, error) {
+	return newStoreWithDB(db, newStoreConfig(opts))
+}
+
+func newStoreWithDB(db *sql.DB, cfg storeConfig) (*Store, error) {
+	// PRAGMA busy_timeout = ...;
+	_, err := db.Exec(fmt.Sprintf("PRAGMA busy_timeout = %d", cfg.busyTimeout.Milliseconds()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
-	// PRAGMA synchronous = NORMAL;
-	_, err = db.Exec("PRAGMA synchronous = NORMAL")
+	// PRAGMA synchronous = ...;
+	_, err = db.Exec(fmt.Sprintf("PRAGMA synchronous = %s", cfg.synchronous))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set synchronous mode: %w", err)
 	}
