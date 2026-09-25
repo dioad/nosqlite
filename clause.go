@@ -198,11 +198,13 @@ func mapToParameter(values []any) []string {
 	for i := range values {
 		s[i] = "?"
 	}
+
 	return s
 }
 
 func (c *inCondition) Clause() string {
 	values := strings.Join(mapToParameter(c.values), ",")
+
 	return fmt.Sprintf("(%s IN (%s))", jsonField(c.Field), values)
 }
 
@@ -268,6 +270,7 @@ func (c *containsCondition) Clause() string {
 	for i := range c.values {
 		clauses[i] = c.singleClause()
 	}
+
 	return fmt.Sprintf("(%s)", strings.Join(clauses, fmt.Sprintf(" %s ", c.combinator)))
 }
 
@@ -301,6 +304,7 @@ func newContainsCondition[T string | number | bool](field string, combinator com
 	for i, tag := range values {
 		anyValues[i] = tag
 	}
+
 	return &containsCondition{Field: field, combinator: combinator, values: anyValues}
 }
 

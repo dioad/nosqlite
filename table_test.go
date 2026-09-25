@@ -13,7 +13,7 @@ type Bar struct {
 }
 
 type Foo struct {
-	Id   int      `json:"id,omitzero"`
+	ID   int      `json:"id,omitzero"`
 	Name string   `json:"name,omitzero"`
 	Bar  Bar      `json:"bar"`
 	List []string `json:"list,omitzero"`
@@ -35,6 +35,7 @@ func helperTempFile(t *testing.T) string {
 	if err != nil {
 		panic(err)
 	}
+
 	return f.Name()
 }
 
@@ -45,6 +46,7 @@ func helperOpenStoreWithFile(t *testing.T, fileName string) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return store
 }
 
@@ -572,19 +574,19 @@ func TestTable_QueryManyIn(t *testing.T) {
 
 	foos := []Foo{
 		{
-			Id:   1,
+			ID:   1,
 			Name: "select-one",
 		},
 		{
-			Id:   2,
+			ID:   2,
 			Name: "select-two",
 		},
 		{
-			Id:   7,
+			ID:   7,
 			Name: "select-seven",
 		},
 		{
-			Id:   8,
+			ID:   8,
 			Name: "select-eight",
 		},
 	}
@@ -756,11 +758,17 @@ func TestDeleteFromTables(t *testing.T) {
 	}
 
 	tableOneItems, err := tableOne.All(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tableOneItems) != 1 {
 		t.Fatalf("expected 1 got %d", len(tableOneItems))
 	}
 
 	tableTwoItems, err := tableTwo.All(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tableTwoItems) != 1 {
 		t.Fatalf("expected 1 got %d", len(tableTwoItems))
 	}
@@ -771,11 +779,17 @@ func TestDeleteFromTables(t *testing.T) {
 	}
 
 	tableOneItems, err = tableOne.All(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tableOneItems) != 1 {
 		t.Fatalf("expected 1 got %d", len(tableOneItems))
 	}
 
 	tableTwoItems, err = tableTwo.All(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tableTwoItems) != 0 {
 		t.Fatalf("expected 0 got %d", len(tableTwoItems))
 	}

@@ -16,7 +16,7 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 	// Insert test data - 10 items with sequential IDs
 	for i := 1; i <= 10; i++ {
 		foo := Foo{
-			Id:   i,
+			ID:   i,
 			Name: "pagination-test",
 		}
 		err := table.Insert(ctx, foo)
@@ -37,10 +37,10 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		}
 
 		// Verify we got the first 3 items
-		expectedIds := []int{1, 2, 3}
+		expectedIDs := []int{1, 2, 3}
 		for i, result := range results {
-			if result.Id != expectedIds[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIds[i], i, result.Id)
+			if result.ID != expectedIDs[i] {
+				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
 			}
 		}
 	})
@@ -57,10 +57,10 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		}
 
 		// Verify we got items 6-10
-		expectedIds := []int{6, 7, 8, 9, 10}
+		expectedIDs := []int{6, 7, 8, 9, 10}
 		for i, result := range results {
-			if result.Id != expectedIds[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIds[i], i, result.Id)
+			if result.ID != expectedIDs[i] {
+				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
 			}
 		}
 	})
@@ -77,10 +77,10 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		}
 
 		// Verify we got items 6-8
-		expectedIds := []int{6, 7, 8}
+		expectedIDs := []int{6, 7, 8}
 		for i, result := range results {
-			if result.Id != expectedIds[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIds[i], i, result.Id)
+			if result.ID != expectedIDs[i] {
+				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
 			}
 		}
 	})
@@ -142,7 +142,7 @@ func TestTableWithTx_QueryManyWithPagination(t *testing.T) {
 	// Insert test data within transaction - 10 items with sequential IDs
 	for i := 1; i <= 10; i++ {
 		foo := Foo{
-			Id:   i,
+			ID:   i,
 			Name: "tx-pagination-test",
 		}
 		err := tableTx.Insert(ctx, foo)
@@ -163,10 +163,10 @@ func TestTableWithTx_QueryManyWithPagination(t *testing.T) {
 		}
 
 		// Verify we got items 3-5
-		expectedIds := []int{3, 4, 5}
+		expectedIDs := []int{3, 4, 5}
 		for i, result := range results {
-			if result.Id != expectedIds[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIds[i], i, result.Id)
+			if result.ID != expectedIDs[i] {
+				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
 			}
 		}
 	})
@@ -215,10 +215,10 @@ func TestTableWithTx_QueryManyWithPagination(t *testing.T) {
 		}
 
 		// Verify we got items 3-5
-		expectedIds := []int{3, 4, 5}
+		expectedIDs := []int{3, 4, 5}
 		for i, result := range results {
-			if result.Id != expectedIds[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIds[i], i, result.Id)
+			if result.ID != expectedIDs[i] {
+				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
 			}
 		}
 	})
@@ -238,7 +238,7 @@ func TestPagination_WithComplexQuery(t *testing.T) {
 	for _, category := range categories {
 		for i := 1; i <= 5; i++ {
 			foo := Foo{
-				Id:   id,
+				ID:   id,
 				Name: category,
 				Bar: Bar{
 					Name: "item",
@@ -270,10 +270,10 @@ func TestPagination_WithComplexQuery(t *testing.T) {
 		}
 
 		// Should get items with IDs 7 and 8 (skipping 6 due to offset=1)
-		expectedIds := []int{7, 8}
+		expectedIDs := []int{7, 8}
 		for i, result := range results {
-			if result.Id != expectedIds[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIds[i], i, result.Id)
+			if result.ID != expectedIDs[i] {
+				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
 			}
 			if result.Name != "category2" {
 				t.Errorf("Expected Name 'category2', got '%s'", result.Name)

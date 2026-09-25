@@ -1,3 +1,6 @@
+// Package nosqlite provides a lightweight document store on top of SQLite,
+// storing JSON-serialized values keyed by a generated table per Go type and
+// queried through a fluent Clause builder.
 package nosqlite
 
 import (
@@ -55,6 +58,7 @@ func (t *TableWithTx[T]) QueryOne(ctx context.Context, clause Clause) (*T, error
 	row := t.tx.QueryRowContext(ctx, queryStatement, values...)
 	err := row.Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
+		//nolint:nilnil // (nil, nil) is the documented "no match" contract for QueryOne; a sentinel error would be a breaking API change.
 		return nil, nil
 	}
 	if err != nil {
@@ -96,7 +100,14 @@ func (t *TableWithTx[T]) QueryManyWithPagination(ctx context.Context, clause Cla
 	if err != nil {
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			// Log the error but don't override the original error if there was one
+			if err == nil {
+				err = closeErr
+			}
+		}
+	}()
 
 	for rows.Next() {
 		err = rows.Scan(&data)
@@ -187,6 +198,7 @@ func (t *TableWithTx[T]) Count(ctx context.Context) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to count rows: %w", err)
 	}
+
 	return c, nil
 }
 
@@ -202,7 +214,7 @@ type Table[T any] struct {
 func tableName[T any]() string {
 	t, _ := reflect.Name[T]()
 
-	nameNoDots := strings.Replace(t, ".", "_", -1)
+	nameNoDots := strings.ReplaceAll(t, ".", "_")
 
 	return strings.ToLower(nameNoDots)
 }
@@ -219,6 +231,7 @@ func NewTable[T any](ctx context.Context, store *Store) (*Table[T], error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return table, nil
 }
 
@@ -237,6 +250,7 @@ func escapeFieldName(field string) string {
 
 	a := strings.ReplaceAll(field, ".", "__")
 	a = strings.ReplaceAll(a, " ", "_")
+
 	return a
 }
 
@@ -267,14 +281,16 @@ func (n *Table[T]) CreateTable(ctx context.Context) error {
 func (n *Table[T]) createTableWithName(ctx context.Context, tableName string) error {
 	createStatement := fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s` (data jsonb)", tableName)
 	_, err := n.store.db.ExecContext(ctx, createStatement)
+
 	return err
 }
 
-// Count returns the number of items in the table
+// Count returns the number of items in the table.
 func (n *Table[T]) Count(ctx context.Context) (uint64, error) {
 	var c uint64
 	count := n.store.db.QueryRowContext(ctx, fmt.Sprintf("%s COUNT(*) AS count FROM `%s`", "SELECT", n.Name))
 	err := count.Scan(&c)
+
 	return c, err
 }
 
@@ -289,6 +305,7 @@ func (n *Table[T]) CreateIndexes(ctx context.Context, indexes ...[]string) ([]st
 			return indexNames, fmt.Errorf("failed to create index for fields %v: %w", fields, err)
 		}
 	}
+
 	return indexNames, nil
 }
 
@@ -305,15 +322,17 @@ func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, e
 
 	createIndexStatement := fmt.Sprintf("CREATE INDEX IF NOT EXISTS `%s` ON `%s` (%s)", indexName, n.Name, indexes)
 	_, err := n.store.db.ExecContext(ctx, createIndexStatement)
+
 	return indexName, err
 }
 
-// hasIndex returns true if the index exists
+// hasIndex returns true if the index exists.
 func (n *Table[T]) hasIndex(ctx context.Context, indexName string) (bool, error) {
 	_, err := n.store.db.ExecContext(ctx, "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?", n.Name, indexName)
 	if err != nil {
 		return false, err
 	}
+
 	return true, nil
 }
 
@@ -324,7 +343,7 @@ func (n *Table[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
 		return 0, fmt.Errorf("context error before delete: %w", ctx.Err())
 	}
 
-	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause())
+	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](), and clause.Clause() interpolates only escapeFieldName-sanitized identifiers; values are passed as parameterized args below
 	result, err := n.store.db.ExecContext(ctx, deleteStatement, clause.Values()...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete data: %w", err)
@@ -365,11 +384,12 @@ func (n *Table[T]) Insert(ctx context.Context, data T) error {
 func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	var data string
 
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s LIMIT 1", "SELECT", n.Name, clause.Clause())
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s LIMIT 1", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](), and clause.Clause() interpolates only escapeFieldName-sanitized identifiers; values are passed as parameterized args below
 	values := clause.Values()
 	row := n.store.db.QueryRowContext(ctx, queryStatement, values...)
 	err := row.Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
+		//nolint:nilnil // (nil, nil) is the documented "no match" contract for QueryOne; a sentinel error would be a breaking API change.
 		return nil, nil
 	}
 	if err != nil {
@@ -406,7 +426,7 @@ func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, l
 	results := make([]T, 0)
 
 	// Build the query with pagination if needed
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause())
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](), and clause.Clause() interpolates only escapeFieldName-sanitized identifiers; values are passed as parameterized args below
 	if limit > 0 {
 		queryStatement += fmt.Sprintf(" LIMIT %d", limit)
 	} else {
@@ -463,7 +483,7 @@ func (n *Table[T]) Update(ctx context.Context, clause Clause, newVal T) error {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", n.Name, clause.Clause())
+	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](), and clause.Clause() interpolates only escapeFieldName-sanitized identifiers; values are passed as parameterized args below
 	params := append([]any{string(b)}, clause.Values()...)
 	result, err := n.store.db.ExecContext(ctx, updateStatement, params...)
 	if err != nil {

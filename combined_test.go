@@ -16,7 +16,7 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 	// Insert some initial data in the main table
 	for i := 1; i <= 5; i++ {
 		foo := Foo{
-			Id:   i,
+			ID:   i,
 			Name: "main-data",
 			Bar: Bar{
 				Name: "original",
@@ -40,7 +40,7 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 	// Insert additional data in the transaction
 	for i := 6; i <= 15; i++ {
 		foo := Foo{
-			Id:   i,
+			ID:   i,
 			Name: "tx-data",
 			Bar: Bar{
 				Name: "transaction",
@@ -55,7 +55,7 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 	// Update some of the main data within the transaction
 	for i := 1; i <= 3; i++ {
 		foo := Foo{
-			Id:   i,
+			ID:   i,
 			Name: "main-data",
 			Bar: Bar{
 				Name: "updated-in-tx",
@@ -79,10 +79,10 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		}
 
 		// Verify we got items 8-10
-		expectedIds := []int{8, 9, 10}
+		expectedIDs := []int{8, 9, 10}
 		for i, result := range results {
-			if result.Id != expectedIds[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIds[i], i, result.Id)
+			if result.ID != expectedIDs[i] {
+				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
 			}
 			if result.Bar.Name != "transaction" {
 				t.Errorf("Expected Bar.Name to be 'transaction', got '%s'", result.Bar.Name)
@@ -106,10 +106,10 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 		}
 
 		// Verify we got items 1-2 with updated values
-		expectedIds := []int{1, 2}
+		expectedIDs := []int{1, 2}
 		for i, result := range results {
-			if result.Id != expectedIds[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIds[i], i, result.Id)
+			if result.ID != expectedIDs[i] {
+				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
 			}
 			if result.Bar.Name != "updated-in-tx" {
 				t.Errorf("Expected Bar.Name to be 'updated-in-tx', got '%s'", result.Bar.Name)
@@ -216,7 +216,7 @@ func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 	// Insert some initial data in the main table
 	for i := 1; i <= 5; i++ {
 		foo := Foo{
-			Id:   i,
+			ID:   i,
 			Name: "rollback-test",
 			Bar: Bar{
 				Name: "original",
@@ -240,7 +240,7 @@ func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 	// Update data in transaction
 	for i := 1; i <= 5; i++ {
 		foo := Foo{
-			Id:   i,
+			ID:   i,
 			Name: "rollback-test",
 			Bar: Bar{
 				Name: "will-be-rolled-back",
@@ -255,7 +255,7 @@ func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 	// Insert additional data in transaction
 	for i := 6; i <= 10; i++ {
 		foo := Foo{
-			Id:   i,
+			ID:   i,
 			Name: "rollback-test",
 			Bar: Bar{
 				Name: "will-be-rolled-back",

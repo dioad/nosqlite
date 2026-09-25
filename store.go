@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	// Registers the "sqlite3" driver used by sql.Open below.
 	_ "github.com/glebarez/go-sqlite/compat"
 )
 
@@ -27,6 +28,8 @@ type Transaction struct {
 // https://www.sqlite.org/pragma.html#pragma_synchronous.
 type SynchronousMode string
 
+// SynchronousMode values, from least to most durable. See
+// https://www.sqlite.org/pragma.html#pragma_synchronous.
 const (
 	SynchronousOff    SynchronousMode = "OFF"
 	SynchronousNormal SynchronousMode = "NORMAL"
@@ -56,6 +59,7 @@ func newStoreConfig(opts []Option) storeConfig {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
+
 	return cfg
 }
 
@@ -139,6 +143,7 @@ func pragmaDSN(cfg storeConfig) string {
 	if cfg.walAutoCheckpoint != nil {
 		dsn += fmt.Sprintf("&_pragma=wal_autocheckpoint(%d)", *cfg.walAutoCheckpoint)
 	}
+
 	return dsn
 }
 
@@ -181,27 +186,29 @@ func NewStoreWithDB(db *sql.DB, opts ...Option) (*Store, error) {
 }
 
 func newStoreWithDB(db *sql.DB, cfg storeConfig) (*Store, error) {
+	ctx := context.Background()
+
 	// PRAGMA busy_timeout = ...;
-	_, err := db.Exec(fmt.Sprintf("PRAGMA busy_timeout = %d", cfg.busyTimeout.Milliseconds()))
+	_, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA busy_timeout = %d", cfg.busyTimeout.Milliseconds()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
 	// PRAGMA synchronous = ...;
-	_, err = db.Exec(fmt.Sprintf("PRAGMA synchronous = %s", cfg.synchronous))
+	_, err = db.ExecContext(ctx, fmt.Sprintf("PRAGMA synchronous = %s", cfg.synchronous))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set synchronous mode: %w", err)
 	}
 
 	// PRAGMA journal_mode = WAL;
-	_, err = db.Exec("PRAGMA journal_mode = WAL")
+	_, err = db.ExecContext(ctx, "PRAGMA journal_mode = WAL")
 	if err != nil {
 		return nil, fmt.Errorf("failed to set journal mode: %w", err)
 	}
 
 	if cfg.walAutoCheckpoint != nil {
 		// PRAGMA wal_autocheckpoint = ...;
-		_, err = db.Exec(fmt.Sprintf("PRAGMA wal_autocheckpoint = %d", *cfg.walAutoCheckpoint))
+		_, err = db.ExecContext(ctx, fmt.Sprintf("PRAGMA wal_autocheckpoint = %d", *cfg.walAutoCheckpoint))
 		if err != nil {
 			return nil, fmt.Errorf("failed to set wal_autocheckpoint: %w", err)
 		}
@@ -212,7 +219,7 @@ func newStoreWithDB(db *sql.DB, cfg storeConfig) (*Store, error) {
 
 // Ping verifies the connection to the database is still alive.
 func (s *Store) Ping() error {
-	return s.db.Ping()
+	return s.db.PingContext(context.Background())
 }
 
 // Close closes the underlying database connection.
@@ -226,6 +233,7 @@ func (s *Store) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Transaction,
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
+
 	return &Transaction{tx: tx}, nil
 }
 
@@ -239,6 +247,7 @@ func (tx *Transaction) Commit() error {
 	if err := tx.tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
 	return nil
 }
 
@@ -247,22 +256,23 @@ func (tx *Transaction) Rollback() error {
 	if err := tx.tx.Rollback(); err != nil {
 		return fmt.Errorf("failed to rollback transaction: %w", err)
 	}
+
 	return nil
 }
 
 // Exec executes a query that doesn't return rows.
 func (tx *Transaction) Exec(query string, args ...any) (sql.Result, error) {
-	return tx.tx.Exec(query, args...)
+	return tx.tx.ExecContext(context.Background(), query, args...)
 }
 
 // Query executes a query that returns multiple rows.
 func (tx *Transaction) Query(query string, args ...any) (*sql.Rows, error) {
-	return tx.tx.Query(query, args...)
+	return tx.tx.QueryContext(context.Background(), query, args...)
 }
 
 // QueryRow executes a query that is expected to return at most one row.
 func (tx *Transaction) QueryRow(query string, args ...any) *sql.Row {
-	return tx.tx.QueryRow(query, args...)
+	return tx.tx.QueryRowContext(context.Background(), query, args...)
 }
 
 // ExecContext executes a query that doesn't return rows, with context support.

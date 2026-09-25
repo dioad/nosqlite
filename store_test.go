@@ -72,7 +72,7 @@ func assertPragma(t *testing.T, store *Store, pragma, want string) {
 	t.Helper()
 
 	var got string
-	row := store.db.QueryRow("PRAGMA " + pragma)
+	row := store.db.QueryRowContext(context.Background(), "PRAGMA "+pragma)
 	if err := row.Scan(&got); err != nil {
 		t.Fatalf("failed to read pragma %s: %v", pragma, err)
 	}
