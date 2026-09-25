@@ -222,10 +222,20 @@ func NewTable[T any](ctx context.Context, store *Store) (*Table[T], error) {
 	return table, nil
 }
 
+// escapeFieldName turns a field reference into a SQL-identifier-safe
+// fragment for use in an index name. Fields are usually passed as SQLite
+// JSON path expressions (e.g. "$.name" or "$.bar.name", as accepted by
+// jsonField); the leading "$." root is stripped since it carries no
+// distinguishing information, and any remaining "." path separators are
+// replaced with "__". A field with no "$." prefix (a bare key, e.g. "time",
+// which jsonField also accepts as shorthand for "$.time") is used as-is
+// rather than having its only "." cut away - a field with no "." at all
+// used to be reduced to "" here, silently colliding every such field's
+// index name with every other one on the same table.
 func escapeFieldName(field string) string {
-	_, after, _ := strings.Cut(field, ".")
+	field = strings.TrimPrefix(field, "$.")
 
-	a := strings.ReplaceAll(after, ".", "__")
+	a := strings.ReplaceAll(field, ".", "__")
 	a = strings.ReplaceAll(a, " ", "_")
 	return a
 }

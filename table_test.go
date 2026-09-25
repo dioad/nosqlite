@@ -84,12 +84,52 @@ func TestEscapeFieldName(t *testing.T) {
 		{"$.name", "name"},
 		{"$.name.first", "name__first"},
 		{"$.name.first.last", "name__first__last"},
+		// Bare field names (no "$." prefix) are also valid - jsonField treats
+		// them as shorthand for "$.<field>" - and must not collapse to "".
+		{"time", "time"},
+		{"type", "type"},
 	}
 
 	for _, test := range tests {
 		result := escapeFieldName(test.field)
 		if result != test.expected {
 			t.Errorf("expected %s got %s", test.expected, result)
+		}
+	}
+}
+
+// TestTable_CreateIndexes_BareFieldNamesDoNotCollide is a regression test:
+// escapeFieldName used to reduce any field with no "." (e.g. plain "time" or
+// "type", as opposed to "$.time"/"$.type") to "", so distinct single-field
+// indexes on a table ended up requesting the same index name. The second
+// CREATE INDEX IF NOT EXISTS then silently no-op'd instead of creating the
+// index it was asked for.
+func TestTable_CreateIndexes_BareFieldNamesDoNotCollide(t *testing.T) {
+	ctx := context.Background()
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](ctx, t, store)
+
+	names, err := table.CreateIndexes(ctx, []string{"name"}, []string{"id"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if names[0] == names[1] {
+		t.Fatalf("expected distinct index names for distinct fields, got %q for both", names[0])
+	}
+
+	// Query sqlite_master directly rather than via hasIndex, which reports
+	// true regardless of whether a matching row was actually found.
+	for _, name := range names {
+		var got string
+		err := store.db.QueryRowContext(ctx,
+			"SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?",
+			table.Name, name,
+		).Scan(&got)
+		if err != nil {
+			t.Errorf("expected index %q to exist: %v", name, err)
 		}
 	}
 }
