@@ -43,8 +43,9 @@ const (
 // value is meaningless; always build one from newStoreConfig so the defaults
 // are applied.
 type storeConfig struct {
-	busyTimeout time.Duration
-	synchronous SynchronousMode
+	busyTimeout       time.Duration
+	synchronous       SynchronousMode
+	walAutoCheckpoint *int
 }
 
 func newStoreConfig(opts []Option) storeConfig {
@@ -59,9 +60,9 @@ func newStoreConfig(opts []Option) storeConfig {
 }
 
 // Option configures tunable pragma values for a Store created by NewStore or
-// NewStoreWithDB. Only busy_timeout and synchronous are configurable -
-// journal_mode and the transaction locking mode are fixed (see
-// fixedDSNParams) because they are load-bearing for correctness under
+// NewStoreWithDB. busy_timeout, synchronous, and wal_autocheckpoint are
+// configurable - journal_mode and the transaction locking mode are fixed
+// (see fixedDSNParams) because they are load-bearing for correctness under
 // concurrent access, not a performance preference.
 type Option func(*storeConfig)
 
@@ -78,6 +79,25 @@ func WithBusyTimeout(d time.Duration) Option {
 // journal_mode=WAL, does not fsync on every commit the way FULL does.
 func WithSynchronous(mode SynchronousMode) Option {
 	return func(c *storeConfig) { c.synchronous = mode }
+}
+
+// WithWALAutoCheckpoint overrides SQLite's wal_autocheckpoint pragma, which
+// controls how many pages the WAL is allowed to grow to before SQLite
+// automatically checkpoints (copies WAL pages back into the main db file and
+// resets the WAL) on its own. Left unset, SQLite's built-in default
+// (1000 pages) applies.
+//
+// Pass 0 to disable automatic checkpointing entirely. This is required, not
+// optional, when a Store's database file is being replicated by a tool that
+// tracks WAL frames itself (e.g. Litestream): if SQLite checkpoints and
+// resets the WAL out from under the replicator before it has captured those
+// frames, the replicator's view of the transaction sequence develops a gap,
+// and independently checkpointing while a replicator is also reading the WAL
+// can corrupt the database file. When wal_autocheckpoint is disabled this
+// way, something else (the replicator) must be responsible for checkpointing
+// the WAL, or it will grow unbounded.
+func WithWALAutoCheckpoint(pages int) Option {
+	return func(c *storeConfig) { c.walAutoCheckpoint = &pages }
 }
 
 // fixedDSNParams are applied via DSN query parameters (rather than a PRAGMA
@@ -112,15 +132,19 @@ const fixedDSNParams = "_pragma=journal_mode(WAL)&_txlock=immediate"
 // pragmaDSN renders cfg's tunable pragmas and the fixed correctness-critical
 // settings as DSN query parameters.
 func pragmaDSN(cfg storeConfig) string {
-	return fmt.Sprintf(
+	dsn := fmt.Sprintf(
 		"_pragma=busy_timeout(%d)&_pragma=synchronous(%s)&%s",
 		cfg.busyTimeout.Milliseconds(), cfg.synchronous, fixedDSNParams,
 	)
+	if cfg.walAutoCheckpoint != nil {
+		dsn += fmt.Sprintf("&_pragma=wal_autocheckpoint(%d)", *cfg.walAutoCheckpoint)
+	}
+	return dsn
 }
 
 // NewStore creates a new Store with a connection to a SQLite database at the given file path.
 // It also sets some recommended PRAGMAs for performance and concurrency (busy_timeout, synchronous=NORMAL, journal_mode=WAL);
-// use WithBusyTimeout and WithSynchronous to override the tunable ones.
+// use WithBusyTimeout, WithSynchronous, and WithWALAutoCheckpoint to override the tunable ones.
 func NewStore(filePath string, opts ...Option) (*Store, error) {
 	cfg := newStoreConfig(opts)
 
@@ -141,7 +165,7 @@ func NewStore(filePath string, opts ...Option) (*Store, error) {
 
 // NewStoreWithDB creates a new Store using an existing *sql.DB connection.
 // It also sets some recommended PRAGMAs for performance and concurrency;
-// use WithBusyTimeout and WithSynchronous to override the tunable ones.
+// use WithBusyTimeout, WithSynchronous, and WithWALAutoCheckpoint to override the tunable ones.
 //
 // These are applied via db.Exec, which - unlike the DSN parameters NewStore
 // uses - only guarantees the pragma is in effect on the single connection
@@ -173,6 +197,14 @@ func newStoreWithDB(db *sql.DB, cfg storeConfig) (*Store, error) {
 	_, err = db.Exec("PRAGMA journal_mode = WAL")
 	if err != nil {
 		return nil, fmt.Errorf("failed to set journal mode: %w", err)
+	}
+
+	if cfg.walAutoCheckpoint != nil {
+		// PRAGMA wal_autocheckpoint = ...;
+		_, err = db.Exec(fmt.Sprintf("PRAGMA wal_autocheckpoint = %d", *cfg.walAutoCheckpoint))
+		if err != nil {
+			return nil, fmt.Errorf("failed to set wal_autocheckpoint: %w", err)
+		}
 	}
 
 	return &Store{db: db}, nil
