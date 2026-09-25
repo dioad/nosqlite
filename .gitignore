@@ -23,3 +23,11 @@ go.work
 
 .idea/
 *.db
+
+
+# APM dependencies
+apm_modules/
+.agents/
+.claude/
+.github/instructions/
+.github/prompts/

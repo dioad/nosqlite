@@ -1,0 +1,13 @@
+name: nosqlite
+version: 1.0.0
+description: APM project for nosqlite
+author: Pat Downey
+targets:
+- claude
+- copilot
+dependencies:
+  apm:
+  - dioad/agent-skills
+  mcp: []
+includes: auto
+scripts: {}
