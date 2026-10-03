@@ -15,6 +15,35 @@ import (
 	"github.com/dioad/reflect"
 )
 
+// paginationQuery builds the SELECT statement shared by Table and
+// TableWithTx's QueryManyWithPagination: a query scoped by clauseSQL, with a
+// stable ORDER BY and LIMIT/OFFSET applied.
+//
+// ORDER BY rowid gives LIMIT/OFFSET a guaranteed ordering - without it, SQL
+// makes no promise about row order, and pages could silently skip or repeat
+// rows if the query planner ever stops choosing a plain rowid-order scan.
+//
+// LIMIT is always present, using SQLite's "no limit" sentinel of -1 when the
+// caller didn't request one, because SQLite rejects a bare OFFSET with no
+// preceding LIMIT ("near \"OFFSET\": syntax error").
+func paginationQuery(tableName, clauseSQL string, limit, offset uint64) string {
+	// #nosec G201 -- tableName is derived from the Go type name via
+	// tableName[T](); clauseSQL comes from clause.Clause(), which embeds no
+	// caller data at all, only "?" placeholders, with every field path and
+	// value passed as a bound parameter via clause.Values()
+	query := fmt.Sprintf("SELECT data FROM `%s` WHERE %s ORDER BY rowid", tableName, clauseSQL)
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	} else {
+		query += " LIMIT -1"
+	}
+	if offset > 0 {
+		query += fmt.Sprintf(" OFFSET %d", offset)
+	}
+
+	return query
+}
+
 // TableWithTx represents a table within the scope of a transaction.
 type TableWithTx[T any] struct {
 	tx   *Transaction
@@ -88,14 +117,7 @@ func (t *TableWithTx[T]) QueryManyWithPagination(ctx context.Context, clause Cla
 	var data string
 	results := make([]T, 0)
 
-	// Build the query with pagination if needed
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", t.name, clause.Clause())
-	if limit > 0 {
-		queryStatement += fmt.Sprintf(" LIMIT %d", limit)
-	}
-	if offset > 0 {
-		queryStatement += fmt.Sprintf(" OFFSET %d", offset)
-	}
+	queryStatement := paginationQuery(t.name, clause.Clause(), limit, offset)
 
 	rows, err := t.tx.QueryContext(ctx, queryStatement, clause.Values()...)
 	if err != nil {
@@ -450,16 +472,7 @@ func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, l
 	var data string
 	results := make([]T, 0)
 
-	// Build the query with pagination if needed
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
-	if limit > 0 {
-		queryStatement += fmt.Sprintf(" LIMIT %d", limit)
-	} else {
-		queryStatement += " LIMIT -1"
-	}
-	if offset > 0 {
-		queryStatement += fmt.Sprintf(" OFFSET %d", offset)
-	}
+	queryStatement := paginationQuery(n.Name, clause.Clause(), limit, offset)
 
 	rows, err := n.store.db.QueryContext(ctx, queryStatement, clause.Values()...)
 	if err != nil {

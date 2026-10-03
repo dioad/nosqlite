@@ -12,15 +12,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 ## Findings
 
-### 3. Paginated queries have no `ORDER BY` — page contents and ordering are not actually guaranteed
-
-- **File(s):** `table.go` (`Table.QueryManyWithPagination`, `TableWithTx.QueryManyWithPagination`)
-- **Dimension(s):** Correctness
-- **Priority:** High
-- **Status:** Open
-- **Description:** Both `QueryManyWithPagination` implementations build `SELECT data FROM ... WHERE ... LIMIT n OFFSET m` with no `ORDER BY` clause. SQL does not guarantee row order without one; the only reason `pagination_test.go`'s exact-sequence assertions (e.g. `expectedIDs := []int{6, 7, 8, 9, 10}`, pagination_test.go:66) currently pass is that SQLite happens to return rows from a plain table scan in rowid insertion order. That is an implementation detail of the query plan, not a documented guarantee — adding an index the query planner decides to use for a given `WHERE` clause, a `VACUUM`, or a future SQLite version is enough to change scan order and make pages silently skip or repeat rows for any caller relying on this documented feature (README.md advertises `Limit`/`Offset` as a feature).
-- **Recommended fix:** Add an explicit, stable `ORDER BY` (e.g. `ORDER BY rowid`) to the query built in both `QueryManyWithPagination` methods, so page ordering is a guarantee of the implementation rather than an accident of the current query plan.
-
 ### 4. `rows.Close()` error can never reach the caller — unnamed return values make the deferred capture a no-op
 
 - **File(s):** `table.go` (`Table.QueryManyWithPagination:443-471`, `TableWithTx.QueryManyWithPagination:103-131`)
@@ -81,8 +72,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 | # | Priority | Status | Finding | File(s) |
 |---|----------|--------|---------|---------|
-| 2 | High     | Open   | Comparison clauses silently corrupt non-`int`/`float64` numeric types | clause.go |
-| 3 | High     | Open   | Paginated queries have no `ORDER BY`; page order is not guaranteed | table.go |
 | 4 | Medium   | Open   | `rows.Close()` error can never reach the caller (unnamed returns) | table.go |
 | 5 | Medium   | Open   | `hasIndex` always returns true and has no real caller | table.go |
 | 6 | Medium   | Open   | No executable `Example` functions or `examples/` directory | README.md |
