@@ -12,6 +12,7 @@ linters:
     - exhaustruct
     - exhaustruct_v5
     - err113
+    - nlreturn
     - testpackage
     - depguard
     - paralleltest
