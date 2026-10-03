@@ -33,9 +33,13 @@ type number interface {
 // Clause represents a query condition that can be converted to SQL.
 // It provides a fluent interface for combining multiple conditions using AND and OR operators.
 type Clause interface {
-	// Clause returns the SQL representation of the condition using '?' as placeholders for values.
+	// Clause returns the SQL representation of the condition, using '?' as
+	// placeholders for both the JSON field path and any comparison values -
+	// see Values, which supplies them in the matching order.
 	Clause() string
-	// Values returns the arguments to be used with the SQL query.
+	// Values returns the arguments to be used with the SQL query, in the
+	// order their '?' placeholders appear in Clause: the JSON field path(s)
+	// first, then the comparison value(s).
 	Values() []any
 
 	// And combines this clause with another one using the AND operator.
@@ -44,9 +48,11 @@ type Clause interface {
 	Or(c Clause) Clause
 }
 
-func jsonField(field string) string {
-	return fmt.Sprintf("data->>'%s'", field)
-}
+// jsonFieldExpr is the SQL fragment used to extract a JSON field from the
+// data column. The field path is always supplied as a bound parameter (see
+// each Clause implementation's Values method) rather than interpolated into
+// the SQL text, so a field value can never alter the query's structure.
+const jsonFieldExpr = "data->>?"
 
 type combinatorClause struct {
 	combinator    combinator
@@ -114,19 +120,18 @@ type condition[T string | number | bool] struct {
 }
 
 func (c *condition[T]) Clause() string {
-	return fmt.Sprintf("(%s %s ?)", jsonField(c.Field), c.Operator)
+	return fmt.Sprintf("(%s %s ?)", jsonFieldExpr, c.Operator)
 }
 
 func (c *condition[T]) Values() []any {
 	switch v := any(c.Value).(type) {
 	case string:
-		return []any{v}
+		return []any{c.Field, v}
 	case int, float64, bool:
-		return []any{v}
+		return []any{c.Field, v}
 	default:
-		return []any{fmt.Sprintf("%v", v)}
+		return []any{c.Field, fmt.Sprintf("%v", v)}
 	}
-	// return []any{fmt.Sprintf("%v", c.Value)}
 }
 
 func (c *condition[T]) And(cl Clause) Clause {
@@ -205,11 +210,11 @@ func mapToParameter(values []any) []string {
 func (c *inCondition) Clause() string {
 	values := strings.Join(mapToParameter(c.values), ",")
 
-	return fmt.Sprintf("(%s IN (%s))", jsonField(c.Field), values)
+	return fmt.Sprintf("(%s IN (%s))", jsonFieldExpr, values)
 }
 
 func (c *inCondition) Values() []any {
-	return c.values
+	return append([]any{c.Field}, c.values...)
 }
 
 func (c *inCondition) And(cl Clause) Clause {
@@ -232,11 +237,11 @@ type betweenCondition[T string | number] struct {
 }
 
 func (c *betweenCondition[T]) Clause() string {
-	return fmt.Sprintf("(%s BETWEEN ? AND ?)", jsonField(c.Field))
+	return fmt.Sprintf("(%s BETWEEN ? AND ?)", jsonFieldExpr)
 }
 
 func (c *betweenCondition[T]) Values() []any {
-	return []any{c.From, c.To}
+	return []any{c.Field, c.From, c.To}
 }
 
 func (c *betweenCondition[T]) And(cl Clause) Clause {
@@ -259,7 +264,7 @@ type containsCondition struct {
 }
 
 func (c *containsCondition) singleClause() string {
-	return fmt.Sprintf("(EXISTS (SELECT 1 FROM json_each(%s) WHERE json_each.value = ?))", jsonField(c.Field))
+	return fmt.Sprintf("(EXISTS (SELECT 1 FROM json_each(%s) WHERE json_each.value = ?))", jsonFieldExpr)
 }
 
 func (c *containsCondition) Clause() string {
@@ -275,7 +280,15 @@ func (c *containsCondition) Clause() string {
 }
 
 func (c *containsCondition) Values() []any {
-	return c.values
+	// Each value has its own singleClause() fragment with its own
+	// jsonFieldExpr placeholder, so the field must be repeated once per
+	// value, immediately before that value, to match placeholder order.
+	values := make([]any, 0, len(c.values)*2)
+	for _, v := range c.values {
+		values = append(values, c.Field, v)
+	}
+
+	return values
 }
 
 func (c *containsCondition) And(cl Clause) Clause {

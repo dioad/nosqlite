@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/dioad/reflect"
@@ -238,10 +239,10 @@ func NewTable[T any](ctx context.Context, store *Store) (*Table[T], error) {
 // escapeFieldName turns a field reference into a SQL-identifier-safe
 // fragment for use in an index name. Fields are usually passed as SQLite
 // JSON path expressions (e.g. "$.name" or "$.bar.name", as accepted by
-// jsonField); the leading "$." root is stripped since it carries no
+// jsonFieldExpr); the leading "$." root is stripped since it carries no
 // distinguishing information, and any remaining "." path separators are
 // replaced with "__". A field with no "$." prefix (a bare key, e.g. "time",
-// which jsonField also accepts as shorthand for "$.time") is used as-is
+// which jsonFieldExpr also accepts as shorthand for "$.time") is used as-is
 // rather than having its only "." cut away - a field with no "." at all
 // used to be reduced to "" here, silently colliding every such field's
 // index name with every other one on the same table.
@@ -309,8 +310,32 @@ func (n *Table[T]) CreateIndexes(ctx context.Context, indexes ...[]string) ([]st
 	return indexNames, nil
 }
 
+// validIndexField matches the characters a SQLite JSON path expression may
+// legitimately contain (e.g. "$.name", "$.bar.name", or a bare "name").
+// CreateIndex rejects anything else: unlike a query clause, an index column
+// expression is DDL, where SQLite does not accept bound parameters ("SQL
+// logic error: parameters prohibited in index expressions"), so the field
+// must be validated before being interpolated into the CREATE INDEX text.
+var validIndexField = regexp.MustCompile(`^[A-Za-z0-9_$.\[\]]+$`)
+
+// validateIndexFields returns an error naming the first field that is not a
+// valid SQLite JSON path per validIndexField.
+func validateIndexFields(fields []string) error {
+	for _, field := range fields {
+		if !validIndexField.MatchString(field) {
+			return fmt.Errorf("invalid index field %q: must match %s", field, validIndexField.String())
+		}
+	}
+
+	return nil
+}
+
 // CreateIndex creates an index on the specified fields of the document.
 func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, error) {
+	if err := validateIndexFields(fields); err != nil {
+		return "", err
+	}
+
 	indexName := n.indexName(fields...)
 
 	indexFields := make([]string, len(fields))
@@ -343,7 +368,7 @@ func (n *Table[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
 		return 0, fmt.Errorf("context error before delete: %w", ctx.Err())
 	}
 
-	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](), and clause.Clause() interpolates only escapeFieldName-sanitized identifiers; values are passed as parameterized args below
+	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
 	result, err := n.store.db.ExecContext(ctx, deleteStatement, clause.Values()...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete data: %w", err)
@@ -384,7 +409,7 @@ func (n *Table[T]) Insert(ctx context.Context, data T) error {
 func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	var data string
 
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s LIMIT 1", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](), and clause.Clause() interpolates only escapeFieldName-sanitized identifiers; values are passed as parameterized args below
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s LIMIT 1", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
 	values := clause.Values()
 	row := n.store.db.QueryRowContext(ctx, queryStatement, values...)
 	err := row.Scan(&data)
@@ -426,7 +451,7 @@ func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, l
 	results := make([]T, 0)
 
 	// Build the query with pagination if needed
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](), and clause.Clause() interpolates only escapeFieldName-sanitized identifiers; values are passed as parameterized args below
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
 	if limit > 0 {
 		queryStatement += fmt.Sprintf(" LIMIT %d", limit)
 	} else {
@@ -483,7 +508,7 @@ func (n *Table[T]) Update(ctx context.Context, clause Clause, newVal T) error {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](), and clause.Clause() interpolates only escapeFieldName-sanitized identifiers; values are passed as parameterized args below
+	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
 	params := append([]any{string(b)}, clause.Values()...)
 	result, err := n.store.db.ExecContext(ctx, updateStatement, params...)
 	if err != nil {

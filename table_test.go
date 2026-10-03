@@ -88,8 +88,8 @@ func TestEscapeFieldName(t *testing.T) {
 		{"$.name", "name"},
 		{"$.name.first", "name__first"},
 		{"$.name.first.last", "name__first__last"},
-		// Bare field names (no "$." prefix) are also valid - jsonField treats
-		// them as shorthand for "$.<field>" - and must not collapse to "".
+		// Bare field names (no "$." prefix) are also valid - jsonFieldExpr
+		// treats them as shorthand for "$.<field>" - and must not collapse to "".
 		{"time", "time"},
 		{"type", "type"},
 	}
@@ -290,6 +290,27 @@ func TestTable_CreateIndex(t *testing.T) {
 	_, err = table.hasIndex(ctx, name)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestTable_CreateIndex_RejectsInvalidField is a regression test: CreateIndex
+// builds a CREATE INDEX statement with the field interpolated directly into
+// the SQL text (SQLite does not permit bound parameters in index
+// expressions - "SQL logic error: parameters prohibited in index
+// expressions"), so the field must be validated before being embedded.
+func TestTable_CreateIndex_RejectsInvalidField(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](ctx, t, store)
+
+	_, err := table.CreateIndex(ctx, "$.name' ) -- ")
+	if err == nil {
+		t.Fatal("expected error for a field containing characters outside a JSON path, got nil")
 	}
 }
 
@@ -515,6 +536,12 @@ func TestTable_QueryBool(t *testing.T) {
 	}
 }
 
+// TestTable_QueryOneInjectInField is a regression test for the field path
+// previously being interpolated directly into SQL text. With the field path
+// now passed as a bound parameter (see jsonFieldExpr in clause.go), even a
+// quote-balanced payload that would have altered the query's structure is
+// inert: SQLite treats it as a literal, non-matching JSON path rather than
+// as SQL syntax, so it neither errors nor widens the match.
 func TestTable_QueryOneInjectInField(t *testing.T) {
 	t.Parallel()
 
@@ -537,9 +564,12 @@ func TestTable_QueryOneInjectInField(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = table.QueryOne(ctx, Equal("$.name' OR 1=1 --", "injection"))
-	if err == nil {
-		t.Fatal("expected error got nil")
+	res, err := table.QueryOne(ctx, Equal("$.name' = 'injection' OR '1'='1", "injection"))
+	if err != nil {
+		t.Fatalf("expected no error for a bound (non-executable) field path, got: %v", err)
+	}
+	if res != nil {
+		t.Fatal("expected nil result: a malicious field path must not widen the match")
 	}
 }
 
