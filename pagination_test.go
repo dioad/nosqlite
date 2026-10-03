@@ -6,9 +6,11 @@ import (
 )
 
 func TestTable_QueryManyWithPagination(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
-	defer helperCloseStore(t, store)
+	t.Cleanup(func() { helperCloseStore(t, store) })
 
 	// Create a table
 	table := helperTable[Foo](ctx, t, store)
@@ -27,6 +29,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 
 	// Test case 1: Limit only (limit=3, offset=0)
 	t.Run("LimitOnly", func(t *testing.T) {
+		t.Parallel()
+
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 3, 0)
 		if err != nil {
 			t.Fatalf("Failed to query with pagination: %v", err)
@@ -47,6 +51,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 
 	// Test case 2: Offset only (limit=0, offset=5)
 	t.Run("OffsetOnly", func(t *testing.T) {
+		t.Parallel()
+
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 0, 5)
 		if err != nil {
 			t.Fatalf("Failed to query with pagination: %v", err)
@@ -67,6 +73,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 
 	// Test case 3: Both limit and offset (limit=3, offset=5)
 	t.Run("LimitAndOffset", func(t *testing.T) {
+		t.Parallel()
+
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 3, 5)
 		if err != nil {
 			t.Fatalf("Failed to query with pagination: %v", err)
@@ -87,6 +95,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 
 	// Test case 4: Zero limit and zero offset (should return all items)
 	t.Run("ZeroLimitAndOffset", func(t *testing.T) {
+		t.Parallel()
+
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 0, 0)
 		if err != nil {
 			t.Fatalf("Failed to query with pagination: %v", err)
@@ -99,6 +109,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 
 	// Test case 5: Offset beyond available data
 	t.Run("OffsetBeyondData", func(t *testing.T) {
+		t.Parallel()
+
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 0, 15)
 		if err != nil {
 			t.Fatalf("Failed to query with pagination: %v", err)
@@ -111,6 +123,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 
 	// Test case 6: Limit larger than available data
 	t.Run("LargeLimitSmallData", func(t *testing.T) {
+		t.Parallel()
+
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 20, 0)
 		if err != nil {
 			t.Fatalf("Failed to query with pagination: %v", err)
@@ -122,6 +136,11 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 	})
 }
 
+// TestTableWithTx_QueryManyWithPagination is not t.Parallel(): its subtests
+// observe transaction state interleaved with tx.Commit() in this function
+// body (see TestCombined_TransactionAndPagination in combined_test.go), so
+// they cannot be made parallel themselves, and a parallel parent with
+// non-parallel subtests is a lint violation (tparallel).
 func TestTableWithTx_QueryManyWithPagination(t *testing.T) {
 	ctx := context.Background()
 	store := helperOpenStore(t)
@@ -225,9 +244,11 @@ func TestTableWithTx_QueryManyWithPagination(t *testing.T) {
 }
 
 func TestPagination_WithComplexQuery(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
-	defer helperCloseStore(t, store)
+	t.Cleanup(func() { helperCloseStore(t, store) })
 
 	// Create a table
 	table := helperTable[Foo](ctx, t, store)
@@ -254,6 +275,8 @@ func TestPagination_WithComplexQuery(t *testing.T) {
 
 	// Test pagination with complex query (AND condition)
 	t.Run("PaginationWithComplexQuery", func(t *testing.T) {
+		t.Parallel()
+
 		// Query items from category2 with pagination
 		clause := And(
 			Equal("$.name", "category2"),

@@ -79,6 +79,8 @@ func helperTable[T any](ctx context.Context, t *testing.T, store *Store) *Table[
 }
 
 func TestEscapeFieldName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		field    string
 		expected string
@@ -107,6 +109,8 @@ func TestEscapeFieldName(t *testing.T) {
 // CREATE INDEX IF NOT EXISTS then silently no-op'd instead of creating the
 // index it was asked for.
 func TestTable_CreateIndexes_BareFieldNamesDoNotCollide(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
@@ -137,6 +141,8 @@ func TestTable_CreateIndexes_BareFieldNamesDoNotCollide(t *testing.T) {
 }
 
 func TestTableName(t *testing.T) {
+	t.Parallel()
+
 	result := tableName[Foo]()
 	if result != "nosqlite_foo" {
 		t.Errorf("expected nosqlite_foo got %s", result)
@@ -144,6 +150,8 @@ func TestTableName(t *testing.T) {
 }
 
 func TestTableNameWithPointer(t *testing.T) {
+	t.Parallel()
+
 	result := tableName[*Foo]()
 	if result != "nosqlite_foo" {
 		t.Errorf("expected nosqlite_foo got %s", result)
@@ -151,6 +159,8 @@ func TestTableNameWithPointer(t *testing.T) {
 }
 
 func TestJoinEscapedFieldNames(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		fields   []string
 		expected string
@@ -170,6 +180,8 @@ func TestJoinEscapedFieldNames(t *testing.T) {
 }
 
 func TestTable_Insert(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
@@ -201,6 +213,7 @@ func TestTable_Insert(t *testing.T) {
 }
 
 func TestTable_Update(t *testing.T) {
+	t.Parallel()
 
 	ctx := context.Background()
 
@@ -255,6 +268,8 @@ func TestTable_Update(t *testing.T) {
 }
 
 func TestTable_CreateIndex(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -279,6 +294,8 @@ func TestTable_CreateIndex(t *testing.T) {
 }
 
 func TestTable_Count(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -317,6 +334,8 @@ func TestTable_Count(t *testing.T) {
 }
 
 func TestTable_QueryOneNoResults(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -336,6 +355,7 @@ func TestTable_QueryOneNoResults(t *testing.T) {
 }
 
 func TestTable_QueryMany(t *testing.T) {
+	t.Parallel()
 
 	ctx := context.Background()
 
@@ -375,6 +395,7 @@ func TestTable_QueryMany(t *testing.T) {
 }
 
 func TestTable_All(t *testing.T) {
+	t.Parallel()
 
 	ctx := context.Background()
 
@@ -412,6 +433,8 @@ func TestTable_All(t *testing.T) {
 }
 
 func TestTable_QueryOneInjectInValue(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -442,6 +465,8 @@ func TestTable_QueryOneInjectInValue(t *testing.T) {
 }
 
 func TestTable_QueryBool(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -491,6 +516,8 @@ func TestTable_QueryBool(t *testing.T) {
 }
 
 func TestTable_QueryOneInjectInField(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -517,6 +544,8 @@ func TestTable_QueryOneInjectInField(t *testing.T) {
 }
 
 func TestTable_Delete(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -565,6 +594,8 @@ func TestTable_Delete(t *testing.T) {
 }
 
 func TestTable_QueryManyIn(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -610,6 +641,8 @@ func TestTable_QueryManyIn(t *testing.T) {
 }
 
 func TestTable_QueryManyContainsAll(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -652,6 +685,8 @@ func TestTable_QueryManyContainsAll(t *testing.T) {
 }
 
 func TestTable_QueryManyContainsAny(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -693,6 +728,8 @@ func TestTable_QueryManyContainsAny(t *testing.T) {
 }
 
 func TestTable_QueryManyContains(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := helperOpenStore(t)
@@ -734,6 +771,8 @@ func TestTable_QueryManyContains(t *testing.T) {
 }
 
 func TestDeleteFromTables(t *testing.T) {
+	t.Parallel()
+
 	var err error
 
 	ctx := context.Background()
@@ -803,6 +842,8 @@ type ParentStruct struct {
 }
 
 func TestUpdateWithEmbeddedStruct(t *testing.T) {
+	t.Parallel()
+
 	var err error
 
 	ctx := context.Background()
@@ -841,6 +882,8 @@ func TestUpdateWithEmbeddedStruct(t *testing.T) {
 }
 
 func TestTable_CreateIndexes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)

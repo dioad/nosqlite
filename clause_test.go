@@ -5,6 +5,8 @@ import (
 )
 
 func TestInClause(t *testing.T) {
+	t.Parallel()
+
 	c := In("id", "1", "2", "3")
 
 	if got := c.Clause(); got != "(data->>'id' IN (?,?,?))" {
@@ -19,6 +21,8 @@ func TestInClause(t *testing.T) {
 }
 
 func TestBetweenClause(t *testing.T) {
+	t.Parallel()
+
 	c := Between[int]("id", 1, 2)
 
 	if got := c.Clause(); got != "(data->>'id' BETWEEN ? AND ?)" {
@@ -31,6 +35,8 @@ func TestBetweenClause(t *testing.T) {
 }
 
 func TestAndClauses(t *testing.T) {
+	t.Parallel()
+
 	clauseOne := &condition[int]{
 		Field:    "id",
 		Operator: equalsOperator,
@@ -55,6 +61,8 @@ func TestAndClauses(t *testing.T) {
 }
 
 func TestAndClausesFluent(t *testing.T) {
+	t.Parallel()
+
 	clauseOne := &condition[int]{
 		Field:    "id",
 		Operator: equalsOperator,
@@ -79,6 +87,8 @@ func TestAndClausesFluent(t *testing.T) {
 }
 
 func TestOrClauses(t *testing.T) {
+	t.Parallel()
+
 	clauseOne := &condition[int]{
 		Field:    "id",
 		Operator: equalsOperator,
@@ -103,6 +113,8 @@ func TestOrClauses(t *testing.T) {
 }
 
 func TestOrClausesFluent(t *testing.T) {
+	t.Parallel()
+
 	clauseOne := &condition[int]{
 		Field:    "id",
 		Operator: equalsOperator,
@@ -127,6 +139,8 @@ func TestOrClausesFluent(t *testing.T) {
 }
 
 func TestAndOrClauses(t *testing.T) {
+	t.Parallel()
+
 	clauseOne := &condition[int]{
 		Field:    "id",
 		Operator: equalsOperator,
@@ -157,6 +171,8 @@ func TestAndOrClauses(t *testing.T) {
 }
 
 func TestAndOrClausesFluent(t *testing.T) {
+	t.Parallel()
+
 	clauseOne := &condition[int]{
 		Field:    "id",
 		Operator: equalsOperator,
@@ -187,6 +203,8 @@ func TestAndOrClausesFluent(t *testing.T) {
 }
 
 func TestConditions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		condition      Clause
 		expectedClause string
@@ -241,6 +259,8 @@ func TestConditions(t *testing.T) {
 }
 
 func TestContains(t *testing.T) {
+	t.Parallel()
+
 	c := Contains("$.list", "one")
 
 	expected := "(EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?))"
@@ -251,6 +271,8 @@ func TestContains(t *testing.T) {
 }
 
 func TestContainsAll(t *testing.T) {
+	t.Parallel()
+
 	c := ContainsAll("$.list", "one", "two")
 
 	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)) AND (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)))"
@@ -261,6 +283,8 @@ func TestContainsAll(t *testing.T) {
 }
 
 func TestContainsAny(t *testing.T) {
+	t.Parallel()
+
 	c := ContainsAny("$.list", "one", "two")
 
 	expected := "((EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)) OR (EXISTS (SELECT 1 FROM json_each(data->>'$.list') WHERE json_each.value = ?)))"
@@ -271,6 +295,8 @@ func TestContainsAny(t *testing.T) {
 }
 
 func TestTrueClause(t *testing.T) {
+	t.Parallel()
+
 	c := True("$.approved")
 
 	expected := "(data->>'$.approved' = ?)"
@@ -281,6 +307,8 @@ func TestTrueClause(t *testing.T) {
 }
 
 func TestFalseClause(t *testing.T) {
+	t.Parallel()
+
 	c := False("$.approved")
 
 	expected := "(data->>'$.approved' = ?)"
@@ -291,6 +319,8 @@ func TestFalseClause(t *testing.T) {
 }
 
 func TestCombinatorClause_AndOr(t *testing.T) {
+	t.Parallel()
+
 	c1 := Equal("id", 1)
 	c2 := Equal("name", "test")
 
@@ -308,6 +338,8 @@ func TestCombinatorClause_AndOr(t *testing.T) {
 }
 
 func TestInCondition_AndOr(t *testing.T) {
+	t.Parallel()
+
 	c1 := In("id", 1, 2)
 	c2 := Equal("name", "test")
 
@@ -323,6 +355,8 @@ func TestInCondition_AndOr(t *testing.T) {
 }
 
 func TestBetweenCondition_AndOr(t *testing.T) {
+	t.Parallel()
+
 	c1 := Between("age", 20, 30)
 	c2 := Equal("name", "test")
 
@@ -338,6 +372,8 @@ func TestBetweenCondition_AndOr(t *testing.T) {
 }
 
 func TestContainsCondition_AndOr(t *testing.T) {
+	t.Parallel()
+
 	c1 := Contains("tags", "go")
 	c2 := Equal("name", "test")
 
@@ -353,6 +389,8 @@ func TestContainsCondition_AndOr(t *testing.T) {
 }
 
 func TestCombinatorClause_Empty(t *testing.T) {
+	t.Parallel()
+
 	c := And()
 	if got := c.Clause(); got != "(1 == 1)" {
 		t.Errorf("got %v", got)

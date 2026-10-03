@@ -6,6 +6,8 @@ import (
 )
 
 func TestTransaction_Commit(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
@@ -72,6 +74,8 @@ func TestTransaction_Commit(t *testing.T) {
 }
 
 func TestTransaction_Rollback(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
@@ -127,6 +131,8 @@ func TestTransaction_Rollback(t *testing.T) {
 }
 
 func TestTableWithTx_CRUD(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
@@ -219,6 +225,8 @@ func TestTableWithTx_CRUD(t *testing.T) {
 }
 
 func TestTransaction_Isolation(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)

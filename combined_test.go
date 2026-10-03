@@ -5,6 +5,11 @@ import (
 	"testing"
 )
 
+// TestCombined_TransactionAndPagination is not t.Parallel(): its subtests
+// observe transaction state (pre- and post-commit) interleaved with
+// tx.Commit() in this function body, so they cannot be made parallel
+// themselves, and a parallel parent with non-parallel subtests is a lint
+// violation (tparallel).
 func TestCombined_TransactionAndPagination(t *testing.T) {
 	ctx := context.Background()
 	store := helperOpenStore(t)
@@ -205,6 +210,8 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 	})
 }
 
+// TestCombined_TransactionRollbackWithPagination is not t.Parallel(): see
+// TestCombined_TransactionAndPagination.
 func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 	ctx := context.Background()
 	store := helperOpenStore(t)

@@ -8,6 +8,8 @@ import (
 )
 
 func TestNewStore(t *testing.T) {
+	t.Parallel()
+
 	fileName := helperTempFile(t)
 
 	store, err := NewStore(fileName)
@@ -29,6 +31,8 @@ func TestNewStore(t *testing.T) {
 }
 
 func TestNewStore_Defaults(t *testing.T) {
+	t.Parallel()
+
 	store, err := NewStore(helperTempFile(t))
 	if err != nil {
 		t.Fatal(err)
@@ -40,6 +44,8 @@ func TestNewStore_Defaults(t *testing.T) {
 }
 
 func TestNewStore_Options(t *testing.T) {
+	t.Parallel()
+
 	store, err := NewStore(helperTempFile(t),
 		WithBusyTimeout(250*time.Millisecond),
 		WithSynchronous(SynchronousFull),
@@ -54,6 +60,8 @@ func TestNewStore_Options(t *testing.T) {
 }
 
 func TestNewStoreWithDB_Options(t *testing.T) {
+	t.Parallel()
+
 	db, err := sql.Open("sqlite3", helperTempFile(t))
 	if err != nil {
 		t.Fatal(err)
@@ -82,6 +90,8 @@ func assertPragma(t *testing.T, store *Store, pragma, want string) {
 }
 
 func TestStore_Begin(t *testing.T) {
+	t.Parallel()
+
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
 
