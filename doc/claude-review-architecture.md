@@ -12,15 +12,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 ## Findings
 
-### 1. Clause field names are interpolated into SQL unsanitized — contradicts the `#nosec` justification already in the code
-
-- **File(s):** `clause.go` (`jsonField`, `condition.Clause`), `table.go:318` (`CreateIndex`)
-- **Dimension(s):** Security, Correctness
-- **Priority:** High
-- **Status:** Open
-- **Description:** `jsonField` builds `fmt.Sprintf("data->>'%s'", field)` directly from the caller-supplied field string, with no escaping. Every clause constructor (`Equal`, `GreaterThan`, `In`, `Between`, `Contains`, ...) routes through it, so a field value containing a `'` breaks out of the string literal. `table.go`'s `Delete`/`QueryOne`/`QueryMany`/`Update` carry a `#nosec G201` comment claiming `"clause.Clause() interpolates only escapeFieldName-sanitized identifiers"` — this is false. `escapeFieldName` is used *only* to build index names (`constructIndexName`); it is never called from `jsonField` or `condition.Clause()`. The existing test `TestTable_QueryOneInjectInField` (table_test.go:518) only proves that one specific malformed payload (`"$.name' OR 1=1 --"`) causes a SQL syntax error — it does not prove the field is safe, and a payload that keeps the quotes balanced (e.g. `$.x' = '' OR '1'='1`) would not error out. The same unescaped interpolation exists independently in `CreateIndex` (table.go:317-319): `escapeFieldName` there sanitizes only the generated *index name*, not the `data->>'%s'` column expression built from the same raw `field` just three lines above.
-- **Recommended fix:** Reject or escape field strings before they reach `jsonField` (e.g. validate against an allow-listed character set for JSON path segments, or escape embedded `'` as `''`). Apply the same fix at the `CreateIndex` call site. Replace `TestTable_QueryOneInjectInField`'s single-payload assertion with a case that proves a quote-balanced injection payload has no effect on the query results (not just that one malformed string errors). Correct or remove the `#nosec G201` comments once the real sanitization exists — currently they document a guarantee the code does not provide.
-
 ### 2. Comparison clauses silently corrupt every numeric type except `int`, `float64`, and `bool`
 
 - **File(s):** `clause.go` (`condition.Values`)
@@ -99,7 +90,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 | # | Priority | Status | Finding | File(s) |
 |---|----------|--------|---------|---------|
-| 1 | High     | Open   | Clause field names interpolated unsanitized into SQL; `#nosec` justification is false | clause.go, table.go |
 | 2 | High     | Open   | Comparison clauses silently corrupt non-`int`/`float64` numeric types | clause.go |
 | 3 | High     | Open   | Paginated queries have no `ORDER BY`; page order is not guaranteed | table.go |
 | 4 | Medium   | Open   | `rows.Close()` error can never reach the caller (unnamed returns) | table.go |
