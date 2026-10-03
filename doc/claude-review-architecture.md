@@ -12,15 +12,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 ## Findings
 
-### 2. Comparison clauses silently corrupt every numeric type except `int`, `float64`, and `bool`
-
-- **File(s):** `clause.go` (`condition.Values`)
-- **Dimension(s):** Correctness
-- **Priority:** High
-- **Status:** Open
-- **Description:** `condition[T].Values()` type-switches on `any(c.Value)` and only recognizes the literal types `string`, `int`, `float64`, `bool`; every other type permitted by the `number` constraint (`int8`/`16`/`32`/`64`, `uint`/`uint8`/`16`/`32`/`64`, `float32`) falls through to `default: return []any{fmt.Sprintf("%v", v)}`, converting the value to a string before it is bound as a SQL parameter. Verified end-to-end against a real store in this session: inserting `Foo{ID: 7}` and querying `Equal[int64]("$.id", int64(7))` returns **no match** for the row that exists, because `data->>'$.id'` evaluates to an integer and SQLite's type-affinity comparison rules never consider an INTEGER equal to a bound TEXT value. This silently breaks `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanOrEqual`, `LessThan`, and `LessThanOrEqual` for any field typed as `int64`, `uint`, `float32`, etc. — a very likely choice for an `ID` or counter field. `Between`'s `Values()` (clause.go:238-240) returns `c.From`/`c.To` directly with no such switch and is unaffected, which confirms the switch in `condition.Values()` is the defect, not an intentional type-normalization step.
-- **Recommended fix:** Delete the type switch in `condition[T].Values()` and return `[]any{c.Value}` directly, the same way `betweenCondition.Values()` already does. `database/sql` already handles binding any of the constrained numeric types correctly without help.
-
 ### 3. Paginated queries have no `ORDER BY` — page contents and ordering are not actually guaranteed
 
 - **File(s):** `table.go` (`Table.QueryManyWithPagination`, `TableWithTx.QueryManyWithPagination`)
