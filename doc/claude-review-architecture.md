@@ -1,0 +1,110 @@
+# Architecture Review: `github.com/dioad/nosqlite`
+
+_Reviewed: 2026-10-03 — branch `main` (f5b7682)_
+
+---
+
+## Executive Summary
+
+`nosqlite` is a small, focused library (5 source files, ~1,800 lines) with a clean public API and generally idiomatic Go. The codebase builds and tests cleanly, and `store.go`'s PRAGMA/locking choices show real engineering care (the `fixedDSNParams` and `WithSynchronous` doc comments explain *why*, not just *what*). The most critical theme is that the query layer — the part of the API every caller touches — has three independent, verified correctness defects: field names are interpolated into SQL unsanitized despite a `#nosec` comment that claims otherwise, equality/comparison clauses silently corrupt any numeric type other than literal `int`/`float64` (confirmed: `Equal[int64]` returns zero rows for an existing match), and paginated queries have no `ORDER BY`, so the stable page ordering the test suite assumes is not actually guaranteed by SQLite. Recommended focus for Phase 2: fix all three query-layer defects first (they are the ones a consumer can hit silently, with no error), then clean up the smaller correctness/documentation gaps.
+
+---
+
+## Findings
+
+### 1. Clause field names are interpolated into SQL unsanitized — contradicts the `#nosec` justification already in the code
+
+- **File(s):** `clause.go` (`jsonField`, `condition.Clause`), `table.go:318` (`CreateIndex`)
+- **Dimension(s):** Security, Correctness
+- **Priority:** High
+- **Status:** Open
+- **Description:** `jsonField` builds `fmt.Sprintf("data->>'%s'", field)` directly from the caller-supplied field string, with no escaping. Every clause constructor (`Equal`, `GreaterThan`, `In`, `Between`, `Contains`, ...) routes through it, so a field value containing a `'` breaks out of the string literal. `table.go`'s `Delete`/`QueryOne`/`QueryMany`/`Update` carry a `#nosec G201` comment claiming `"clause.Clause() interpolates only escapeFieldName-sanitized identifiers"` — this is false. `escapeFieldName` is used *only* to build index names (`constructIndexName`); it is never called from `jsonField` or `condition.Clause()`. The existing test `TestTable_QueryOneInjectInField` (table_test.go:518) only proves that one specific malformed payload (`"$.name' OR 1=1 --"`) causes a SQL syntax error — it does not prove the field is safe, and a payload that keeps the quotes balanced (e.g. `$.x' = '' OR '1'='1`) would not error out. The same unescaped interpolation exists independently in `CreateIndex` (table.go:317-319): `escapeFieldName` there sanitizes only the generated *index name*, not the `data->>'%s'` column expression built from the same raw `field` just three lines above.
+- **Recommended fix:** Reject or escape field strings before they reach `jsonField` (e.g. validate against an allow-listed character set for JSON path segments, or escape embedded `'` as `''`). Apply the same fix at the `CreateIndex` call site. Replace `TestTable_QueryOneInjectInField`'s single-payload assertion with a case that proves a quote-balanced injection payload has no effect on the query results (not just that one malformed string errors). Correct or remove the `#nosec G201` comments once the real sanitization exists — currently they document a guarantee the code does not provide.
+
+### 2. Comparison clauses silently corrupt every numeric type except `int`, `float64`, and `bool`
+
+- **File(s):** `clause.go` (`condition.Values`)
+- **Dimension(s):** Correctness
+- **Priority:** High
+- **Status:** Open
+- **Description:** `condition[T].Values()` type-switches on `any(c.Value)` and only recognizes the literal types `string`, `int`, `float64`, `bool`; every other type permitted by the `number` constraint (`int8`/`16`/`32`/`64`, `uint`/`uint8`/`16`/`32`/`64`, `float32`) falls through to `default: return []any{fmt.Sprintf("%v", v)}`, converting the value to a string before it is bound as a SQL parameter. Verified end-to-end against a real store in this session: inserting `Foo{ID: 7}` and querying `Equal[int64]("$.id", int64(7))` returns **no match** for the row that exists, because `data->>'$.id'` evaluates to an integer and SQLite's type-affinity comparison rules never consider an INTEGER equal to a bound TEXT value. This silently breaks `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanOrEqual`, `LessThan`, and `LessThanOrEqual` for any field typed as `int64`, `uint`, `float32`, etc. — a very likely choice for an `ID` or counter field. `Between`'s `Values()` (clause.go:238-240) returns `c.From`/`c.To` directly with no such switch and is unaffected, which confirms the switch in `condition.Values()` is the defect, not an intentional type-normalization step.
+- **Recommended fix:** Delete the type switch in `condition[T].Values()` and return `[]any{c.Value}` directly, the same way `betweenCondition.Values()` already does. `database/sql` already handles binding any of the constrained numeric types correctly without help.
+
+### 3. Paginated queries have no `ORDER BY` — page contents and ordering are not actually guaranteed
+
+- **File(s):** `table.go` (`Table.QueryManyWithPagination`, `TableWithTx.QueryManyWithPagination`)
+- **Dimension(s):** Correctness
+- **Priority:** High
+- **Status:** Open
+- **Description:** Both `QueryManyWithPagination` implementations build `SELECT data FROM ... WHERE ... LIMIT n OFFSET m` with no `ORDER BY` clause. SQL does not guarantee row order without one; the only reason `pagination_test.go`'s exact-sequence assertions (e.g. `expectedIDs := []int{6, 7, 8, 9, 10}`, pagination_test.go:66) currently pass is that SQLite happens to return rows from a plain table scan in rowid insertion order. That is an implementation detail of the query plan, not a documented guarantee — adding an index the query planner decides to use for a given `WHERE` clause, a `VACUUM`, or a future SQLite version is enough to change scan order and make pages silently skip or repeat rows for any caller relying on this documented feature (README.md advertises `Limit`/`Offset` as a feature).
+- **Recommended fix:** Add an explicit, stable `ORDER BY` (e.g. `ORDER BY rowid`) to the query built in both `QueryManyWithPagination` methods, so page ordering is a guarantee of the implementation rather than an accident of the current query plan.
+
+### 4. `rows.Close()` error can never reach the caller — unnamed return values make the deferred capture a no-op
+
+- **File(s):** `table.go` (`Table.QueryManyWithPagination:443-471`, `TableWithTx.QueryManyWithPagination:103-131`)
+- **Dimension(s):** Correctness
+- **Priority:** Medium
+- **Status:** Open
+- **Description:** Both methods defer a closure that assigns `rows.Close()`'s error into the local `err` variable "so it isn't lost" — but the enclosing function signature uses unnamed return values (`([]T, error)`). `return results, nil` evaluates and binds the return values *before* the deferred closure runs; mutating the local `err` afterward has no effect on what was already returned. The code reads as though a close failure is surfaced to the caller; it never is. This is duplicated verbatim at both call sites.
+- **Recommended fix:** Use named return values (`(results []T, err error)`) so the deferred assignment actually affects what's returned, or drop the defer and call `rows.Close()` explicitly after the loop, checking its error directly.
+
+### 5. `hasIndex` always returns `true` and has no caller that uses its result — delete it
+
+- **File(s):** `table.go:330-337`
+- **Dimension(s):** Correctness
+- **Priority:** Medium
+- **Status:** Open
+- **Description:** `hasIndex` runs a `SELECT ... FROM sqlite_master` via `db.ExecContext`, which discards any result rows, then unconditionally returns `true` unless the database itself errored — it reports an index exists regardless of whether a matching row was found. This is already called out in `table_test.go:129-130`'s comment ("Query sqlite_master directly rather than via `hasIndex`, which reports true regardless of whether a matching row was actually found"), and `TestTable_CreateIndex` (table_test.go:290) calls it only to discard the boolean. The function is unexported with no production caller.
+- **Recommended fix:** Delete `hasIndex`. It is unused, its one test caller already ignores its result, and it has no correct behavior to fix toward without a caller to define what "exists" should mean (by name? by covered fields?).
+
+### 6. No executable `Example` functions and no `examples/` directory, despite the project's own documentation rules requiring both
+
+- **File(s):** README.md; absence of `examples/` directory and any `func Example...` in `*_test.go`
+- **Dimension(s):** Documentation
+- **Priority:** Medium
+- **Status:** Open
+- **Description:** The project's own `.claude/rules/go-testing.md` states "All Go code examples must be executable and written using the `func Example...` convention... Do not write example code in comments, README snippets, or prose without a corresponding runnable `func Example...` counterpart." `AGENTS.md` separately requires standalone runnable programs under `examples/` for feature areas. Neither exists: the README's Quick Start is a plain, unverified code block, and `grep -rn "^func Example" *.go` returns nothing. The Quick Start can silently drift out of sync with the real API (it is not run by `go test`), and there is no runnable reference for indexing, transactions, or the clause/query API.
+- **Recommended fix:** Add `ExampleTable_Insert`/`ExampleTable_QueryMany`/similar `func Example...` functions (with `// Output:` comments) covering the README's Quick Start, so `go test` verifies it stays accurate. Add an `examples/` directory with at least one complete runnable program per AGENTS.md's stated convention.
+
+### 7. Existing tests use bare `t.Fatal`/`t.Errorf` throughout, contradicting the project's own testify mandate
+
+- **File(s):** `store_test.go`, `table_test.go`, `clause_test.go`, `pagination_test.go`, `transaction_test.go`, `combined_test.go`
+- **Dimension(s):** Good Engineering Practices
+- **Priority:** Medium
+- **Status:** Open
+- **Description:** `.claude/rules/go-testing.md` is explicit: "Use `github.com/stretchr/testify` for all test assertions. Do not use bare `t.Error`, `t.Fatal`, or manual comparisons when testify covers the case." Every test in the repo uses manual `if err != nil { t.Fatal(...) }` / `if got != want { t.Errorf(...) }` comparisons instead. This is a repo-wide convention mismatch, not an isolated lapse — it is the only pattern used anywhere in the test suite.
+- **Recommended fix:** This is a larger change than the rest of this review combined (five files, no `testify` dependency currently in `go.mod`) and adds a new dependency — flag it to the user for sign-off before converting existing tests wholesale. A reasonable split: add `testify` and require new tests to use `assert`/`require` going forward, then convert the existing suite in a dedicated, separately-scoped pass (or batch of commits, one file each) rather than folding it into this review's other fixes.
+
+### 8. `Table.Update` discards `RowsAffected`, unlike `Table.Delete` — but fixing it is a breaking API change on a released module
+
+- **File(s):** `table.go` (`Table.Update:473-506`, `TableWithTx.Update:138-170`)
+- **Dimension(s):** Good Engineering Practices
+- **Priority:** Low
+- **Status:** Open
+- **Description:** `Delete` returns `(int64, error)` so callers can tell whether anything matched. `Update` computes `rowsAffected` internally (to decide whether to log/return early) and then discards it, returning only `error` — a caller cannot distinguish "updated one row" from "clause matched nothing." This is an existing, deliberate API asymmetry: `QueryOne`'s own `//nolint:nilnil` comment already documents that this package avoids breaking its public signatures for exactly this kind of ergonomics improvement ("a sentinel error would be a breaking API change"). `go.mod`'s `release.yml` tags real versions, so this module has external consumers pinned to its current signature.
+- **Recommended fix:** Do not change `Update`'s signature in place. Either add an additive `UpdateWithCount(ctx, clause, newVal) (int64, error)` alongside the existing `Update`, or defer the signature change to a deliberate major version bump (user-triggered per `cross-repo-workflow.md`'s publishing rule, which applies equally to this module's own releases).
+
+### 9. Redundant `ctx.Err()` guards on write paths, absent on read paths — remove rather than extend
+
+- **File(s):** `table.go` (`Insert`, `Update`, `Delete` on both `Table` and `TableWithTx`)
+- **Dimension(s):** Good Engineering Practices
+- **Priority:** Low
+- **Status:** Open
+- **Description:** `Insert`, `Update`, and `Delete` each open with `if ctx.Err() != nil { return ..., fmt.Errorf("context error before %s: %w", ..., ctx.Err()) }`, but `QueryOne`, `QueryMany`, `QueryManyWithPagination`, and `Count` have no equivalent check. `database/sql`'s `*Context` methods (`ExecContext`, `QueryContext`, `QueryRowContext`) already check context cancellation internally and return an error derived from `ctx.Err()` — the explicit guard does not add correctness, it only changes the wrapping text of an error that would already occur. The inconsistency (present on three methods, absent on four) suggests the guard was added defensively rather than to fix an observed gap.
+- **Recommended fix:** Remove the four `ctx.Err()` guards from `Insert`/`Update`/`Delete` on both `Table` and `TableWithTx`, rather than adding matching guards to the read paths — `ExecContext`/`QueryContext` already surface context cancellation correctly without them. This reduces code and cyclomatic complexity with no behavior change.
+
+---
+
+## Priority Table
+
+| # | Priority | Status | Finding | File(s) |
+|---|----------|--------|---------|---------|
+| 1 | High     | Open   | Clause field names interpolated unsanitized into SQL; `#nosec` justification is false | clause.go, table.go |
+| 2 | High     | Open   | Comparison clauses silently corrupt non-`int`/`float64` numeric types | clause.go |
+| 3 | High     | Open   | Paginated queries have no `ORDER BY`; page order is not guaranteed | table.go |
+| 4 | Medium   | Open   | `rows.Close()` error can never reach the caller (unnamed returns) | table.go |
+| 5 | Medium   | Open   | `hasIndex` always returns true and has no real caller | table.go |
+| 6 | Medium   | Open   | No executable `Example` functions or `examples/` directory | README.md |
+| 7 | Medium   | Open   | Tests don't use testify, contradicting project's own rule | *_test.go (all) |
+| 8 | Low      | Open   | `Update` discards `RowsAffected`, unlike `Delete` (breaking change if fixed) | table.go |
+| 9 | Low      | Open   | Redundant `ctx.Err()` guards present on writes, absent on reads | table.go |
