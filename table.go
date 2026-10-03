@@ -113,9 +113,9 @@ func (t *TableWithTx[T]) QueryMany(ctx context.Context, clause Clause) ([]T, err
 // The limit parameter controls the maximum number of items to return.
 // The offset parameter controls the number of items to skip.
 // If limit is 0, all matching items are returned.
-func (t *TableWithTx[T]) QueryManyWithPagination(ctx context.Context, clause Clause, limit, offset uint64) ([]T, error) {
+func (t *TableWithTx[T]) QueryManyWithPagination(ctx context.Context, clause Clause, limit, offset uint64) (results []T, err error) {
 	var data string
-	results := make([]T, 0)
+	results = make([]T, 0)
 
 	queryStatement := paginationQuery(t.name, clause.Clause(), limit, offset)
 
@@ -123,12 +123,13 @@ func (t *TableWithTx[T]) QueryManyWithPagination(ctx context.Context, clause Cla
 	if err != nil {
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
+	// Named return values let this actually reach the caller: a bare
+	// unnamed-return version assigning into a local err here would have no
+	// effect, since return statements bind their values before deferred
+	// calls run.
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			// Log the error but don't override the original error if there was one
-			if err == nil {
-				err = closeErr
-			}
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
 		}
 	}()
 
@@ -468,9 +469,9 @@ func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
 // The offset parameter controls the number of items to skip.
 // If limit is 0, all matching items are returned.
 // Returns an empty slice if no items match the clause.
-func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, limit, offset uint64) ([]T, error) {
+func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, limit, offset uint64) (results []T, err error) {
 	var data string
-	results := make([]T, 0)
+	results = make([]T, 0)
 
 	queryStatement := paginationQuery(n.Name, clause.Clause(), limit, offset)
 
@@ -478,12 +479,13 @@ func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, l
 	if err != nil {
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
+	// Named return values let this actually reach the caller: a bare
+	// unnamed-return version assigning into a local err here would have no
+	// effect, since return statements bind their values before deferred
+	// calls run.
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			// Log the error but don't override the original error if there was one
-			if err == nil {
-				err = closeErr
-			}
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
 		}
 	}()
 

@@ -12,15 +12,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 ## Findings
 
-### 4. `rows.Close()` error can never reach the caller — unnamed return values make the deferred capture a no-op
-
-- **File(s):** `table.go` (`Table.QueryManyWithPagination:443-471`, `TableWithTx.QueryManyWithPagination:103-131`)
-- **Dimension(s):** Correctness
-- **Priority:** Medium
-- **Status:** Open
-- **Description:** Both methods defer a closure that assigns `rows.Close()`'s error into the local `err` variable "so it isn't lost" — but the enclosing function signature uses unnamed return values (`([]T, error)`). `return results, nil` evaluates and binds the return values *before* the deferred closure runs; mutating the local `err` afterward has no effect on what was already returned. The code reads as though a close failure is surfaced to the caller; it never is. This is duplicated verbatim at both call sites.
-- **Recommended fix:** Use named return values (`(results []T, err error)`) so the deferred assignment actually affects what's returned, or drop the defer and call `rows.Close()` explicitly after the loop, checking its error directly.
-
 ### 5. `hasIndex` always returns `true` and has no caller that uses its result — delete it
 
 - **File(s):** `table.go:330-337`
@@ -72,7 +63,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 | # | Priority | Status | Finding | File(s) |
 |---|----------|--------|---------|---------|
-| 4 | Medium   | Open   | `rows.Close()` error can never reach the caller (unnamed returns) | table.go |
 | 5 | Medium   | Open   | `hasIndex` always returns true and has no real caller | table.go |
 | 6 | Medium   | Open   | No executable `Example` functions or `examples/` directory | README.md |
 | 7 | Medium   | Open   | Tests don't use testify, contradicting project's own rule | *_test.go (all) |
