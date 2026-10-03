@@ -124,14 +124,7 @@ func (c *condition[T]) Clause() string {
 }
 
 func (c *condition[T]) Values() []any {
-	switch v := any(c.Value).(type) {
-	case string:
-		return []any{c.Field, v}
-	case int, float64, bool:
-		return []any{c.Field, v}
-	default:
-		return []any{c.Field, fmt.Sprintf("%v", v)}
-	}
+	return []any{c.Field, c.Value}
 }
 
 func (c *condition[T]) And(cl Clause) Clause {

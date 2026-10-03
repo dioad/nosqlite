@@ -536,6 +536,46 @@ func TestTable_QueryBool(t *testing.T) {
 	}
 }
 
+// numericIDFoo exercises numeric types other than the literal int/float64
+// that condition[T].Values() used to special-case.
+type numericIDFoo struct {
+	ID int64 `json:"id,omitzero"`
+}
+
+// TestTable_QueryOneNonLiteralNumericType is a regression test:
+// condition[T].Values() used to type-switch on the comparison value and
+// stringify anything that wasn't a literal int/float64/bool/string, so a
+// field typed as int64 (or uint, float32, etc.) silently never matched -
+// SQLite considers an INTEGER column value and a bound TEXT value unequal
+// regardless of their textual content. Values() now passes c.Value through
+// unconverted, so database/sql binds it with its real type.
+func TestTable_QueryOneNonLiteralNumericType(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[numericIDFoo](ctx, t, store)
+
+	err := table.Insert(ctx, numericIDFoo{ID: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := table.QueryOne(ctx, Equal[int64]("$.id", int64(7)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil {
+		t.Fatal("expected to find the row by its int64 id, got nil")
+	}
+	if res.ID != 7 {
+		t.Errorf("expected ID 7, got %d", res.ID)
+	}
+}
+
 // TestTable_QueryOneInjectInField is a regression test for the field path
 // previously being interpolated directly into SQL text. With the field path
 // now passed as a bound parameter (see jsonFieldExpr in clause.go), even a
