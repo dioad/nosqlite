@@ -12,15 +12,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 ## Findings
 
-### 6. No executable `Example` functions and no `examples/` directory, despite the project's own documentation rules requiring both
-
-- **File(s):** README.md; absence of `examples/` directory and any `func Example...` in `*_test.go`
-- **Dimension(s):** Documentation
-- **Priority:** Medium
-- **Status:** Open
-- **Description:** The project's own `.claude/rules/go-testing.md` states "All Go code examples must be executable and written using the `func Example...` convention... Do not write example code in comments, README snippets, or prose without a corresponding runnable `func Example...` counterpart." `AGENTS.md` separately requires standalone runnable programs under `examples/` for feature areas. Neither exists: the README's Quick Start is a plain, unverified code block, and `grep -rn "^func Example" *.go` returns nothing. The Quick Start can silently drift out of sync with the real API (it is not run by `go test`), and there is no runnable reference for indexing, transactions, or the clause/query API.
-- **Recommended fix:** Add `ExampleTable_Insert`/`ExampleTable_QueryMany`/similar `func Example...` functions (with `// Output:` comments) covering the README's Quick Start, so `go test` verifies it stays accurate. Add an `examples/` directory with at least one complete runnable program per AGENTS.md's stated convention.
-
 ### 7. Existing tests use bare `t.Fatal`/`t.Errorf` throughout, contradicting the project's own testify mandate
 
 - **File(s):** `store_test.go`, `table_test.go`, `clause_test.go`, `pagination_test.go`, `transaction_test.go`, `combined_test.go`
@@ -54,7 +45,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 | # | Priority | Status | Finding | File(s) |
 |---|----------|--------|---------|---------|
-| 6 | Medium   | Open   | No executable `Example` functions or `examples/` directory | README.md |
 | 7 | Medium   | Open   | Tests don't use testify, contradicting project's own rule | *_test.go (all) |
 | 8 | Low      | Open   | `Update` discards `RowsAffected`, unlike `Delete` (breaking change if fixed) | table.go |
 | 9 | Low      | Open   | Redundant `ctx.Err()` guards present on writes, absent on reads | table.go |

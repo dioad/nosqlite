@@ -46,3 +46,12 @@
 - **Resolved in:** (this commit)
 - **Description:** `hasIndex` ran a `SELECT ... FROM sqlite_master` via `db.ExecContext`, which discards any result rows, then unconditionally returned `true` unless the database itself errored — it reported an index exists regardless of whether a matching row was found. Its only caller, `TestTable_CreateIndex`, discarded the boolean.
 - **Outcome:** Deleted `hasIndex` entirely. `TestTable_CreateIndex`'s call to it (which only checked for an error that could never meaningfully occur) was replaced with a direct `sqlite_master` query that actually asserts the index row exists — the same pattern `TestTable_CreateIndexes_BareFieldNamesDoNotCollide` already used elsewhere in the same file. Complexity delta: n/a (function removed). `go build`, `go vet`, and `go test -race ./...` all pass.
+
+### 6. No executable `Example` functions and no `examples/` directory, despite the project's own documentation rules requiring both ✅ Resolved
+
+- **File(s):** README.md; `example_test.go` (new), `examples/basic-usage/` (new)
+- **Dimension(s):** Documentation
+- **Priority:** Medium
+- **Resolved in:** (this commit)
+- **Description:** The project's own `.claude/rules/go-testing.md` requires all code examples to be executable `func Example...` functions; `AGENTS.md` separately requires standalone runnable programs under `examples/`. Neither existed: the README's Quick Start was a plain, unverified code block, and there were no `func Example...` functions anywhere in the repo.
+- **Outcome:** Added `example_test.go` with `Example()` (mirroring the README's Quick Start exactly — opens a store, creates a table, indexes a field, inserts a document, queries it with a combined `And`/`GreaterThanOrEqual`/`Contains` clause, and verifies the printed output) and `ExampleAnd()` (the README's Querying API combinator snippet, asserting the exact generated `Clause()` string). Both run and are output-checked by `go test`. Added `examples/basic-usage/` with a complete, runnable `package main` program and its own `README.md` (prerequisites, run instructions, expected output), per `AGENTS.md`'s convention — built and run directly to confirm its documented output (`Found: Alice (30)`) matches reality. `go build ./...`, `go vet ./...`, and `go test -race ./...` all pass with the new files included.
