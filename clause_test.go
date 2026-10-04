@@ -2,42 +2,28 @@ package nosqlite
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestInClause(t *testing.T) {
 	t.Parallel()
 
 	c := In("id", "1", "2", "3")
-
-	if got := c.Clause(); got != "(data->>? IN (?,?,?))" {
-		t.Errorf("got = %v, want %v", got, "(data->>? IN (?,?,?))")
-	}
-	if got := c.Values(); got[0] != "id" {
-		t.Errorf("got = %v, want field %q first", got, "id")
-	}
+	assert.Equal(t, "(data->>? IN (?,?,?))", c.Clause())
+	assert.Equal(t, []any{"id", "1", "2", "3"}, c.Values())
 
 	c = In("id", 1, 2, 3)
-
-	if got := c.Clause(); got != "(data->>? IN (?,?,?))" {
-		t.Errorf("got = %v, want %v", got, "(data->>? IN (?,?,?))")
-	}
-	if got := c.Values(); got[0] != "id" {
-		t.Errorf("got = %v, want field %q first", got, "id")
-	}
+	assert.Equal(t, "(data->>? IN (?,?,?))", c.Clause())
+	assert.Equal(t, []any{"id", 1, 2, 3}, c.Values())
 }
 
 func TestBetweenClause(t *testing.T) {
 	t.Parallel()
 
 	c := Between[int]("id", 1, 2)
-
-	if got := c.Clause(); got != "(data->>? BETWEEN ? AND ?)" {
-		t.Errorf("got = %v, want %v", got, "(data->>? BETWEEN ? AND ?)")
-	}
-
-	if got := c.Values(); got[0] != "id" || got[1] != 1 || got[2] != 2 {
-		t.Errorf("got = %v, want %v", got, []any{"id", 1, 2})
-	}
+	assert.Equal(t, "(data->>? BETWEEN ? AND ?)", c.Clause())
+	assert.Equal(t, []any{"id", 1, 2}, c.Values())
 }
 
 func TestAndClauses(t *testing.T) {
@@ -54,16 +40,9 @@ func TestAndClauses(t *testing.T) {
 		Value:    "test",
 	}
 
-	want := "((data->>? = ?) AND (data->>? = ?))"
-
 	c := And(clauseOne, clauseTwo)
-	if got := c.Clause(); got != want {
-		t.Errorf("got = %v, want %v", got, want)
-	}
-
-	if got := c.Values(); got[0] != "id" || got[1] != 1 || got[2] != "name" || got[3] != "test" {
-		t.Errorf("got = %v, want %v", got, []any{"id", 1, "name", "test"})
-	}
+	assert.Equal(t, "((data->>? = ?) AND (data->>? = ?))", c.Clause())
+	assert.Equal(t, []any{"id", 1, "name", "test"}, c.Values())
 }
 
 func TestAndClausesFluent(t *testing.T) {
@@ -80,16 +59,9 @@ func TestAndClausesFluent(t *testing.T) {
 		Value:    "test",
 	}
 
-	want := "((data->>? = ?) AND (data->>? = ?))"
-
 	c := clauseOne.And(clauseTwo)
-	if got := c.Clause(); got != want {
-		t.Errorf("got = %v, want %v", got, want)
-	}
-
-	if got := c.Values(); got[0] != "id" || got[1] != 1 || got[2] != "name" || got[3] != "test" {
-		t.Errorf("got = %v, want %v", got, []any{"id", 1, "name", "test"})
-	}
+	assert.Equal(t, "((data->>? = ?) AND (data->>? = ?))", c.Clause())
+	assert.Equal(t, []any{"id", 1, "name", "test"}, c.Values())
 }
 
 func TestOrClauses(t *testing.T) {
@@ -106,16 +78,9 @@ func TestOrClauses(t *testing.T) {
 		Value:    "test",
 	}
 
-	want := "((data->>? = ?) OR (data->>? = ?))"
-
 	c := Or(clauseOne, clauseTwo)
-	if got := c.Clause(); got != want {
-		t.Errorf("got = %v, want %v", got, want)
-	}
-
-	if got := c.Values(); got[0] != "id" || got[1] != 1 || got[2] != "name" || got[3] != "test" {
-		t.Errorf("got = %v, want %v", got, []any{"id", 1, "name", "test"})
-	}
+	assert.Equal(t, "((data->>? = ?) OR (data->>? = ?))", c.Clause())
+	assert.Equal(t, []any{"id", 1, "name", "test"}, c.Values())
 }
 
 func TestOrClausesFluent(t *testing.T) {
@@ -132,16 +97,9 @@ func TestOrClausesFluent(t *testing.T) {
 		Value:    "test",
 	}
 
-	want := "((data->>? = ?) OR (data->>? = ?))"
-
 	c := clauseOne.Or(clauseTwo)
-	if got := c.Clause(); got != want {
-		t.Errorf("got = %v, want %v", got, want)
-	}
-
-	if got := c.Values(); got[0] != "id" || got[1] != 1 || got[2] != "name" || got[3] != "test" {
-		t.Errorf("got = %v, want %v", got, []any{"id", 1, "name", "test"})
-	}
+	assert.Equal(t, "((data->>? = ?) OR (data->>? = ?))", c.Clause())
+	assert.Equal(t, []any{"id", 1, "name", "test"}, c.Values())
 }
 
 func TestAndOrClauses(t *testing.T) {
@@ -163,18 +121,11 @@ func TestAndOrClauses(t *testing.T) {
 		Value:    "bar",
 	}
 
-	want := "(((data->>? = ?) AND (data->>? = ?)) OR (data->>? = ?))"
 	c1 := And(clauseOne, clauseTwo)
 	c2 := Or(c1, clauseThree)
 
-	if got := c2.Clause(); got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-
-	wantValues := []any{"id", 1, "name", "test", "foo", "bar"}
-	if got := c2.Values(); got[1] != 1 || got[3] != "test" || got[5] != "bar" {
-		t.Errorf("got %v, want %v", got, wantValues)
-	}
+	assert.Equal(t, "(((data->>? = ?) AND (data->>? = ?)) OR (data->>? = ?))", c2.Clause())
+	assert.Equal(t, []any{"id", 1, "name", "test", "foo", "bar"}, c2.Values())
 }
 
 func TestAndOrClausesFluent(t *testing.T) {
@@ -196,18 +147,10 @@ func TestAndOrClausesFluent(t *testing.T) {
 		Value:    "bar",
 	}
 
-	want := "(((data->>? = ?) AND (data->>? = ?)) OR (data->>? = ?))"
-
 	c := clauseOne.And(clauseTwo).Or(clauseThree)
 
-	if got := c.Clause(); got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-
-	wantValues := []any{"id", 1, "name", "test", "foo", "bar"}
-	if got := c.Values(); got[1] != 1 || got[3] != "test" || got[5] != "bar" {
-		t.Errorf("got %v, want %v", got, wantValues)
-	}
+	assert.Equal(t, "(((data->>? = ?) AND (data->>? = ?)) OR (data->>? = ?))", c.Clause())
+	assert.Equal(t, []any{"id", 1, "name", "test", "foo", "bar"}, c.Values())
 }
 
 func TestConditions(t *testing.T) {
@@ -216,53 +159,48 @@ func TestConditions(t *testing.T) {
 	tests := []struct {
 		condition      Clause
 		expectedClause string
-		expectedValues []any
+		expectedValue  any
 	}{
 		{
 			condition:      Equal("id", 1),
 			expectedClause: "(data->>? = ?)",
-			expectedValues: []any{1},
+			expectedValue:  1,
 		},
 		{
 			condition:      GreaterThan("id", 1),
 			expectedClause: "(data->>? > ?)",
-			expectedValues: []any{1},
+			expectedValue:  1,
 		},
 		{
 			condition:      LessThan("id", 1),
 			expectedClause: "(data->>? < ?)",
-			expectedValues: []any{1},
+			expectedValue:  1,
 		},
 		{
 			condition:      LessThanOrEqual("id", 1),
 			expectedClause: "(data->>? <= ?)",
-			expectedValues: []any{1},
+			expectedValue:  1,
 		},
 		{
 			condition:      GreaterThanOrEqual("id", 1),
 			expectedClause: "(data->>? >= ?)",
-			expectedValues: []any{1},
+			expectedValue:  1,
 		},
 		{
 			condition:      NotEqual("id", 1),
 			expectedClause: "(data->>? != ?)",
-			expectedValues: []any{1},
+			expectedValue:  1,
 		},
 		{
 			condition:      Like("id", "%hello%"),
 			expectedClause: "(data->>? LIKE ?)",
-			expectedValues: []any{"%hello%"},
+			expectedValue:  "%hello%",
 		},
 	}
 
 	for _, test := range tests {
-		if got := test.condition.Clause(); got != test.expectedClause {
-			t.Errorf("got = %v, want %v", got, test.expectedClause)
-		}
-
-		if got := test.condition.Values(); got[0] != "id" || got[1] != test.expectedValues[0] {
-			t.Errorf("got = %v, want field %q then %v", got, "id", test.expectedValues)
-		}
+		assert.Equal(t, test.expectedClause, test.condition.Clause())
+		assert.Equal(t, []any{"id", test.expectedValue}, test.condition.Values())
 	}
 }
 
@@ -271,14 +209,8 @@ func TestContains(t *testing.T) {
 
 	c := Contains("$.list", "one")
 
-	expected := "(EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?))"
-
-	if got := c.Clause(); got != expected {
-		t.Errorf("got = %v, want %v", got, expected)
-	}
-	if got := c.Values(); got[0] != "$.list" || got[1] != "one" {
-		t.Errorf("got = %v, want %v", got, []any{"$.list", "one"})
-	}
+	assert.Equal(t, "(EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?))", c.Clause())
+	assert.Equal(t, []any{"$.list", "one"}, c.Values())
 }
 
 func TestContainsAll(t *testing.T) {
@@ -286,15 +218,8 @@ func TestContainsAll(t *testing.T) {
 
 	c := ContainsAll("$.list", "one", "two")
 
-	expected := "((EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)) AND (EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)))"
-
-	if got := c.Clause(); got != expected {
-		t.Errorf("got = %v, want %v", got, expected)
-	}
-	want := []any{"$.list", "one", "$.list", "two"}
-	if got := c.Values(); got[0] != want[0] || got[1] != want[1] || got[2] != want[2] || got[3] != want[3] {
-		t.Errorf("got = %v, want %v", got, want)
-	}
+	assert.Equal(t, "((EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)) AND (EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)))", c.Clause())
+	assert.Equal(t, []any{"$.list", "one", "$.list", "two"}, c.Values())
 }
 
 func TestContainsAny(t *testing.T) {
@@ -302,11 +227,7 @@ func TestContainsAny(t *testing.T) {
 
 	c := ContainsAny("$.list", "one", "two")
 
-	expected := "((EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)) OR (EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)))"
-
-	if got := c.Clause(); got != expected {
-		t.Errorf("got = %v, want %v", got, expected)
-	}
+	assert.Equal(t, "((EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)) OR (EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)))", c.Clause())
 }
 
 func TestTrueClause(t *testing.T) {
@@ -314,11 +235,7 @@ func TestTrueClause(t *testing.T) {
 
 	c := True("$.approved")
 
-	expected := "(data->>? = ?)"
-
-	if got := c.Clause(); got != expected {
-		t.Errorf("got = %v, want %v", got, expected)
-	}
+	assert.Equal(t, "(data->>? = ?)", c.Clause())
 }
 
 func TestFalseClause(t *testing.T) {
@@ -326,11 +243,7 @@ func TestFalseClause(t *testing.T) {
 
 	c := False("$.approved")
 
-	expected := "(data->>? = ?)"
-
-	if got := c.Clause(); got != expected {
-		t.Errorf("got = %v, want %v", got, expected)
-	}
+	assert.Equal(t, "(data->>? = ?)", c.Clause())
 }
 
 func TestCombinatorClause_AndOr(t *testing.T) {
@@ -341,15 +254,17 @@ func TestCombinatorClause_AndOr(t *testing.T) {
 
 	// Test And on combinatorClause
 	andClause := And(c1).And(c2)
-	if got := andClause.Clause(); got != "((data->>? = ?) AND (data->>? = ?))" && got != "(((data->>? = ?)) AND (data->>? = ?))" {
-		t.Errorf("got %v", got)
-	}
+	assert.Contains(t, []string{
+		"((data->>? = ?) AND (data->>? = ?))",
+		"(((data->>? = ?)) AND (data->>? = ?))",
+	}, andClause.Clause())
 
 	// Test Or on combinatorClause
 	orClause := Or(c1).Or(c2)
-	if got := orClause.Clause(); got != "((data->>? = ?) OR (data->>? = ?))" && got != "(((data->>? = ?)) OR (data->>? = ?))" {
-		t.Errorf("got %v", got)
-	}
+	assert.Contains(t, []string{
+		"((data->>? = ?) OR (data->>? = ?))",
+		"(((data->>? = ?)) OR (data->>? = ?))",
+	}, orClause.Clause())
 }
 
 func TestInCondition_AndOr(t *testing.T) {
@@ -359,14 +274,10 @@ func TestInCondition_AndOr(t *testing.T) {
 	c2 := Equal("name", "test")
 
 	andClause := c1.And(c2)
-	if got := andClause.Clause(); got != "((data->>? IN (?,?)) AND (data->>? = ?))" {
-		t.Errorf("got %v", got)
-	}
+	assert.Equal(t, "((data->>? IN (?,?)) AND (data->>? = ?))", andClause.Clause())
 
 	orClause := c1.Or(c2)
-	if got := orClause.Clause(); got != "((data->>? IN (?,?)) OR (data->>? = ?))" {
-		t.Errorf("got %v", got)
-	}
+	assert.Equal(t, "((data->>? IN (?,?)) OR (data->>? = ?))", orClause.Clause())
 }
 
 func TestBetweenCondition_AndOr(t *testing.T) {
@@ -376,14 +287,10 @@ func TestBetweenCondition_AndOr(t *testing.T) {
 	c2 := Equal("name", "test")
 
 	andClause := c1.And(c2)
-	if got := andClause.Clause(); got != "((data->>? BETWEEN ? AND ?) AND (data->>? = ?))" {
-		t.Errorf("got %v", got)
-	}
+	assert.Equal(t, "((data->>? BETWEEN ? AND ?) AND (data->>? = ?))", andClause.Clause())
 
 	orClause := c1.Or(c2)
-	if got := orClause.Clause(); got != "((data->>? BETWEEN ? AND ?) OR (data->>? = ?))" {
-		t.Errorf("got %v", got)
-	}
+	assert.Equal(t, "((data->>? BETWEEN ? AND ?) OR (data->>? = ?))", orClause.Clause())
 }
 
 func TestContainsCondition_AndOr(t *testing.T) {
@@ -393,21 +300,15 @@ func TestContainsCondition_AndOr(t *testing.T) {
 	c2 := Equal("name", "test")
 
 	andClause := c1.And(c2)
-	if got := andClause.Clause(); got != "((EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)) AND (data->>? = ?))" {
-		t.Errorf("got %v", got)
-	}
+	assert.Equal(t, "((EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)) AND (data->>? = ?))", andClause.Clause())
 
 	orClause := c1.Or(c2)
-	if got := orClause.Clause(); got != "((EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)) OR (data->>? = ?))" {
-		t.Errorf("got %v", got)
-	}
+	assert.Equal(t, "((EXISTS (SELECT 1 FROM json_each(data->>?) WHERE json_each.value = ?)) OR (data->>? = ?))", orClause.Clause())
 }
 
 func TestCombinatorClause_Empty(t *testing.T) {
 	t.Parallel()
 
 	c := And()
-	if got := c.Clause(); got != "(1 == 1)" {
-		t.Errorf("got %v", got)
-	}
+	assert.Equal(t, "(1 == 1)", c.Clause())
 }
