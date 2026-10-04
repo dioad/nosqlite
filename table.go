@@ -60,11 +60,6 @@ func (n *Table[T]) WithTransaction(tx *Transaction) *TableWithTx[T] {
 
 // Insert adds a new item to the table within the transaction.
 func (t *TableWithTx[T]) Insert(ctx context.Context, data T) error {
-	// Check if context is already canceled
-	if ctx.Err() != nil {
-		return fmt.Errorf("context error before insert: %w", ctx.Err())
-	}
-
 	b, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
@@ -163,11 +158,6 @@ func (t *TableWithTx[T]) All(ctx context.Context) ([]T, error) {
 // transaction that match the given clause, like Update, and additionally
 // returns the number of rows affected.
 func (t *TableWithTx[T]) UpdateWithCount(ctx context.Context, clause Clause, newVal T) (int64, error) {
-	// Check if context is already canceled
-	if ctx.Err() != nil {
-		return 0, fmt.Errorf("context error before update: %w", ctx.Err())
-	}
-
 	b, err := json.Marshal(newVal)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal data: %w", err)
@@ -200,10 +190,6 @@ func (t *TableWithTx[T]) Update(ctx context.Context, clause Clause, newVal T) er
 // Delete removes items from the table within the transaction.
 // Returns the number of rows deleted and any error.
 func (t *TableWithTx[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
-	if ctx.Err() != nil {
-		return 0, fmt.Errorf("context error before delete: %w", ctx.Err())
-	}
-
 	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", t.name, clause.Clause())
 	result, err := t.tx.ExecContext(ctx, deleteStatement, clause.Values()...)
 	if err != nil {
@@ -381,10 +367,6 @@ func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, e
 // Delete removes items from the table that match the given clause.
 // Returns the number of rows deleted and any error.
 func (n *Table[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
-	if ctx.Err() != nil {
-		return 0, fmt.Errorf("context error before delete: %w", ctx.Err())
-	}
-
 	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
 	result, err := n.store.db.ExecContext(ctx, deleteStatement, clause.Values()...)
 	if err != nil {
@@ -402,11 +384,6 @@ func (n *Table[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
 // Insert adds a new item to the table.
 // The data is serialized to JSON and stored in the 'data' column.
 func (n *Table[T]) Insert(ctx context.Context, data T) error {
-	// Check if context is already canceled
-	if ctx.Err() != nil {
-		return fmt.Errorf("context error before insert: %w", ctx.Err())
-	}
-
 	b, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
@@ -508,11 +485,6 @@ func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, l
 // given clause, like Update, and additionally returns the number of rows
 // affected.
 func (n *Table[T]) UpdateWithCount(ctx context.Context, clause Clause, newVal T) (int64, error) {
-	// Check if context is already canceled
-	if ctx.Err() != nil {
-		return 0, fmt.Errorf("context error before update: %w", ctx.Err())
-	}
-
 	b, err := json.Marshal(newVal)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal data: %w", err)
