@@ -3,7 +3,22 @@ package nosqlite
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// fooIDs extracts the ID field from a slice of Foo, for comparing query
+// results against an expected ID sequence in one assert.Equal call (which
+// checks both length and order, unlike a manual element-by-element loop).
+func fooIDs(results []Foo) []int {
+	ids := make([]int, len(results))
+	for i, result := range results {
+		ids[i] = result.ID
+	}
+
+	return ids
+}
 
 // TestTable_QueryManyWithPagination_StableUnderIndex exercises pagination in
 // a realistic scenario where a result-narrowing index exists and rowid
@@ -27,30 +42,15 @@ func TestTable_QueryManyWithPagination_StableUnderIndex(t *testing.T) {
 	insertOrderIDs := []int{5, 4, 3, 2, 1}
 	for _, id := range insertOrderIDs {
 		err := table.Insert(ctx, Foo{ID: id, Name: "stable-order"})
-		if err != nil {
-			t.Fatalf("failed to insert test data: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	_, err := table.CreateIndex(ctx, "$.id")
-	if err != nil {
-		t.Fatalf("failed to create index: %v", err)
-	}
+	require.NoError(t, err)
 
 	results, err := table.QueryManyWithPagination(ctx, GreaterThan("$.id", 0), 0, 0)
-	if err != nil {
-		t.Fatalf("failed to query with pagination: %v", err)
-	}
-
-	if len(results) != len(insertOrderIDs) {
-		t.Fatalf("expected %d results, got %d", len(insertOrderIDs), len(results))
-	}
-
-	for i, result := range results {
-		if result.ID != insertOrderIDs[i] {
-			t.Errorf("expected rowid (insertion) order %v at position %d, got ID %d", insertOrderIDs, i, result.ID)
-		}
-	}
+	require.NoError(t, err)
+	assert.Equal(t, insertOrderIDs, fooIDs(results))
 }
 
 // TestPaginationQuery pins the SQL text paginationQuery generates, which is
@@ -77,9 +77,7 @@ func TestPaginationQuery(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := paginationQuery("t", "1", test.limit, test.offset); got != test.want {
-				t.Errorf("got = %q, want %q", got, test.want)
-			}
+			assert.Equal(t, test.want, paginationQuery("t", "1", test.limit, test.offset))
 		})
 	}
 }
@@ -100,38 +98,21 @@ func TestTableWithTx_QueryManyWithPagination_OffsetOnly(t *testing.T) {
 
 	table := helperTable[Foo](ctx, t, store)
 	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("failed to begin transaction: %v", err)
-	}
+	require.NoError(t, err)
 	defer func() {
-		if err := tx.Rollback(); err != nil {
-			t.Errorf("failed to rollback transaction: %v", err)
-		}
+		assert.NoError(t, tx.Rollback())
 	}()
 
 	tableTx := table.WithTransaction(tx)
 
 	for i := 1; i <= 5; i++ {
-		if err := tableTx.Insert(ctx, Foo{ID: i, Name: "offset-only"}); err != nil {
-			t.Fatalf("failed to insert test data: %v", err)
-		}
+		err := tableTx.Insert(ctx, Foo{ID: i, Name: "offset-only"})
+		require.NoError(t, err)
 	}
 
 	results, err := tableTx.QueryManyWithPagination(ctx, Equal("$.name", "offset-only"), 0, 2)
-	if err != nil {
-		t.Fatalf("offset-only pagination failed: %v", err)
-	}
-
-	if len(results) != 3 {
-		t.Fatalf("expected 3 results, got %d", len(results))
-	}
-
-	expectedIDs := []int{3, 4, 5}
-	for i, result := range results {
-		if result.ID != expectedIDs[i] {
-			t.Errorf("expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-		}
-	}
+	require.NoError(t, err)
+	assert.Equal(t, []int{3, 4, 5}, fooIDs(results))
 }
 
 func TestTable_QueryManyWithPagination(t *testing.T) {
@@ -151,9 +132,7 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 			Name: "pagination-test",
 		}
 		err := table.Insert(ctx, foo)
-		if err != nil {
-			t.Fatalf("Failed to insert test data: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	// Test case 1: Limit only (limit=3, offset=0)
@@ -161,21 +140,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		t.Parallel()
 
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 3, 0)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination: %v", err)
-		}
-
-		if len(results) != 3 {
-			t.Errorf("Expected 3 results, got %d", len(results))
-		}
-
-		// Verify we got the first 3 items
-		expectedIDs := []int{1, 2, 3}
-		for i, result := range results {
-			if result.ID != expectedIDs[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, []int{1, 2, 3}, fooIDs(results))
 	})
 
 	// Test case 2: Offset only (limit=0, offset=5)
@@ -183,21 +149,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		t.Parallel()
 
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 0, 5)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination: %v", err)
-		}
-
-		if len(results) != 5 {
-			t.Errorf("Expected 5 results, got %d", len(results))
-		}
-
-		// Verify we got items 6-10
-		expectedIDs := []int{6, 7, 8, 9, 10}
-		for i, result := range results {
-			if result.ID != expectedIDs[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, []int{6, 7, 8, 9, 10}, fooIDs(results))
 	})
 
 	// Test case 3: Both limit and offset (limit=3, offset=5)
@@ -205,21 +158,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		t.Parallel()
 
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 3, 5)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination: %v", err)
-		}
-
-		if len(results) != 3 {
-			t.Errorf("Expected 3 results, got %d", len(results))
-		}
-
-		// Verify we got items 6-8
-		expectedIDs := []int{6, 7, 8}
-		for i, result := range results {
-			if result.ID != expectedIDs[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, []int{6, 7, 8}, fooIDs(results))
 	})
 
 	// Test case 4: Zero limit and zero offset (should return all items)
@@ -227,13 +167,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		t.Parallel()
 
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination: %v", err)
-		}
-
-		if len(results) != 10 {
-			t.Errorf("Expected 10 results, got %d", len(results))
-		}
+		require.NoError(t, err)
+		assert.Len(t, results, 10)
 	})
 
 	// Test case 5: Offset beyond available data
@@ -241,13 +176,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		t.Parallel()
 
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 0, 15)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination: %v", err)
-		}
-
-		if len(results) != 0 {
-			t.Errorf("Expected 0 results, got %d", len(results))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, results)
 	})
 
 	// Test case 6: Limit larger than available data
@@ -255,13 +185,8 @@ func TestTable_QueryManyWithPagination(t *testing.T) {
 		t.Parallel()
 
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "pagination-test"), 20, 0)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination: %v", err)
-		}
-
-		if len(results) != 10 {
-			t.Errorf("Expected 10 results, got %d", len(results))
-		}
+		require.NoError(t, err)
+		assert.Len(t, results, 10)
 	})
 }
 
@@ -280,9 +205,7 @@ func TestTableWithTx_QueryManyWithPagination(t *testing.T) {
 
 	// Start a transaction
 	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Get a table with transaction
 	tableTx := table.WithTransaction(tx)
@@ -294,81 +217,41 @@ func TestTableWithTx_QueryManyWithPagination(t *testing.T) {
 			Name: "tx-pagination-test",
 		}
 		err := tableTx.Insert(ctx, foo)
-		if err != nil {
-			t.Fatalf("Failed to insert test data: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	// Test case 1: Basic pagination in transaction
 	t.Run("BasicPaginationInTx", func(t *testing.T) {
 		results, err := tableTx.QueryManyWithPagination(ctx, Equal("$.name", "tx-pagination-test"), 3, 2)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination in transaction: %v", err)
-		}
-
-		if len(results) != 3 {
-			t.Errorf("Expected 3 results, got %d", len(results))
-		}
-
-		// Verify we got items 3-5
-		expectedIDs := []int{3, 4, 5}
-		for i, result := range results {
-			if result.ID != expectedIDs[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, []int{3, 4, 5}, fooIDs(results))
 	})
 
 	// Test case 2: Verify data is not visible outside transaction
 	t.Run("DataIsolationWithPagination", func(t *testing.T) {
 		// Query from main table should return no results
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "tx-pagination-test"), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination from main table: %v", err)
-		}
-
-		if len(results) != 0 {
-			t.Errorf("Expected 0 results from main table, got %d", len(results))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, results)
 	})
 
 	// Test case 3: Verify QueryMany calls QueryManyWithPagination
 	t.Run("QueryManyCallsPagination", func(t *testing.T) {
 		// QueryMany should call QueryManyWithPagination with limit=0, offset=0
 		results, err := tableTx.QueryMany(ctx, Equal("$.name", "tx-pagination-test"))
-		if err != nil {
-			t.Fatalf("Failed to query with QueryMany in transaction: %v", err)
-		}
-
-		if len(results) != 10 {
-			t.Errorf("Expected 10 results, got %d", len(results))
-		}
+		require.NoError(t, err)
+		assert.Len(t, results, 10)
 	})
 
 	// Commit the transaction
 	err = tx.Commit()
-	if err != nil {
-		t.Fatalf("Failed to commit transaction: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Test case 4: Verify data is now visible in main table after commit
 	t.Run("PaginationAfterCommit", func(t *testing.T) {
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "tx-pagination-test"), 3, 2)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination from main table after commit: %v", err)
-		}
-
-		if len(results) != 3 {
-			t.Errorf("Expected 3 results from main table after commit, got %d", len(results))
-		}
-
-		// Verify we got items 3-5
-		expectedIDs := []int{3, 4, 5}
-		for i, result := range results {
-			if result.ID != expectedIDs[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, []int{3, 4, 5}, fooIDs(results))
 	})
 }
 
@@ -395,9 +278,7 @@ func TestPagination_WithComplexQuery(t *testing.T) {
 				},
 			}
 			err := table.Insert(ctx, foo)
-			if err != nil {
-				t.Fatalf("Failed to insert test data: %v", err)
-			}
+			require.NoError(t, err)
 			id++
 		}
 	}
@@ -413,23 +294,12 @@ func TestPagination_WithComplexQuery(t *testing.T) {
 		)
 
 		results, err := table.QueryManyWithPagination(ctx, clause, 2, 1)
-		if err != nil {
-			t.Fatalf("Failed to query with complex condition and pagination: %v", err)
-		}
-
-		if len(results) != 2 {
-			t.Errorf("Expected 2 results, got %d", len(results))
-		}
+		require.NoError(t, err)
 
 		// Should get items with IDs 7 and 8 (skipping 6 due to offset=1)
-		expectedIDs := []int{7, 8}
-		for i, result := range results {
-			if result.ID != expectedIDs[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-			}
-			if result.Name != "category2" {
-				t.Errorf("Expected Name 'category2', got '%s'", result.Name)
-			}
+		assert.Equal(t, []int{7, 8}, fooIDs(results))
+		for _, result := range results {
+			assert.Equal(t, "category2", result.Name)
 		}
 	})
 }
