@@ -12,15 +12,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 ## Findings
 
-### 7. Existing tests use bare `t.Fatal`/`t.Errorf` throughout, contradicting the project's own testify mandate
-
-- **File(s):** `store_test.go`, `table_test.go`, `clause_test.go`, `pagination_test.go`, `transaction_test.go`, `combined_test.go`
-- **Dimension(s):** Good Engineering Practices
-- **Priority:** Medium
-- **Status:** Open
-- **Description:** `.claude/rules/go-testing.md` is explicit: "Use `github.com/stretchr/testify` for all test assertions. Do not use bare `t.Error`, `t.Fatal`, or manual comparisons when testify covers the case." Every test in the repo uses manual `if err != nil { t.Fatal(...) }` / `if got != want { t.Errorf(...) }` comparisons instead. This is a repo-wide convention mismatch, not an isolated lapse — it is the only pattern used anywhere in the test suite.
-- **Recommended fix:** This is a larger change than the rest of this review combined (five files, no `testify` dependency currently in `go.mod`) and adds a new dependency — flag it to the user for sign-off before converting existing tests wholesale. A reasonable split: add `testify` and require new tests to use `assert`/`require` going forward, then convert the existing suite in a dedicated, separately-scoped pass (or batch of commits, one file each) rather than folding it into this review's other fixes.
-
 ### 8. `Table.Update` discards `RowsAffected`, unlike `Table.Delete` — but fixing it is a breaking API change on a released module
 
 - **File(s):** `table.go` (`Table.Update:473-506`, `TableWithTx.Update:138-170`)
@@ -45,6 +36,5 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 | # | Priority | Status | Finding | File(s) |
 |---|----------|--------|---------|---------|
-| 7 | Medium   | Open   | Tests don't use testify, contradicting project's own rule | *_test.go (all) |
 | 8 | Low      | Open   | `Update` discards `RowsAffected`, unlike `Delete` (breaking change if fixed) | table.go |
 | 9 | Low      | Open   | Redundant `ctx.Err()` guards present on writes, absent on reads | table.go |
