@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewStore(t *testing.T) {
@@ -13,30 +16,20 @@ func TestNewStore(t *testing.T) {
 	fileName := helperTempFile(t)
 
 	store, err := NewStore(fileName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	defer func() {
-		err := store.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, store.Close())
 	}()
 
-	err = store.Ping()
-	if err != nil {
-		t.Errorf("Ping failed: %v", err)
-	}
+	assert.NoError(t, store.Ping())
 }
 
 func TestNewStore_Defaults(t *testing.T) {
 	t.Parallel()
 
 	store, err := NewStore(helperTempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer helperCloseStore(t, store)
 
 	assertPragma(t, store, "busy_timeout", "5000")
@@ -50,9 +43,7 @@ func TestNewStore_Options(t *testing.T) {
 		WithBusyTimeout(250*time.Millisecond),
 		WithSynchronous(SynchronousFull),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer helperCloseStore(t, store)
 
 	assertPragma(t, store, "busy_timeout", "250")
@@ -63,14 +54,10 @@ func TestNewStoreWithDB_Options(t *testing.T) {
 	t.Parallel()
 
 	db, err := sql.Open("sqlite3", helperTempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	store, err := NewStoreWithDB(db, WithBusyTimeout(250*time.Millisecond))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer helperCloseStore(t, store)
 
 	assertPragma(t, store, "busy_timeout", "250")
@@ -81,12 +68,8 @@ func assertPragma(t *testing.T, store *Store, pragma, want string) {
 
 	var got string
 	row := store.db.QueryRowContext(context.Background(), "PRAGMA "+pragma)
-	if err := row.Scan(&got); err != nil {
-		t.Fatalf("failed to read pragma %s: %v", pragma, err)
-	}
-	if got != want {
-		t.Errorf("pragma %s = %q, want %q", pragma, got, want)
-	}
+	require.NoError(t, row.Scan(&got), "failed to read pragma %s", pragma)
+	assert.Equal(t, want, got, "pragma %s", pragma)
 }
 
 func TestStore_Begin(t *testing.T) {
@@ -96,13 +79,9 @@ func TestStore_Begin(t *testing.T) {
 	defer helperCloseStore(t, store)
 
 	ctx := context.Background()
-	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Begin failed: %v", err)
-	}
 
-	err = tx.Rollback()
-	if err != nil {
-		t.Errorf("Rollback failed: %v", err)
-	}
+	tx, err := store.Begin(ctx)
+	require.NoError(t, err, "Begin failed")
+
+	assert.NoError(t, tx.Rollback(), "Rollback failed")
 }
