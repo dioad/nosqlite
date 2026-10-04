@@ -3,6 +3,9 @@ package nosqlite
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestCombined_TransactionAndPagination is not t.Parallel(): its subtests
@@ -28,16 +31,12 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 			},
 		}
 		err := table.Insert(ctx, foo)
-		if err != nil {
-			t.Fatalf("Failed to insert initial data: %v", err)
-		}
+		require.NoError(t, err, "failed to insert initial data")
 	}
 
 	// Start a transaction
 	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to begin transaction")
 
 	// Get a table with transaction
 	tableTx := table.WithTransaction(tx)
@@ -52,9 +51,7 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 			},
 		}
 		err := tableTx.Insert(ctx, foo)
-		if err != nil {
-			t.Fatalf("Failed to insert transaction data: %v", err)
-		}
+		require.NoError(t, err, "failed to insert transaction data")
 	}
 
 	// Update some of the main data within the transaction
@@ -67,31 +64,17 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 			},
 		}
 		err := tableTx.Update(ctx, Equal("$.id", i), foo)
-		if err != nil {
-			t.Fatalf("Failed to update data in transaction: %v", err)
-		}
+		require.NoError(t, err, "failed to update data in transaction")
 	}
 
 	// Test case 1: Pagination on transaction-only data
 	t.Run("PaginationOnTransactionData", func(t *testing.T) {
 		results, err := tableTx.QueryManyWithPagination(ctx, Equal("$.name", "tx-data"), 3, 2)
-		if err != nil {
-			t.Fatalf("Failed to query transaction data with pagination: %v", err)
-		}
+		require.NoError(t, err, "failed to query transaction data with pagination")
 
-		if len(results) != 3 {
-			t.Errorf("Expected 3 results, got %d", len(results))
-		}
-
-		// Verify we got items 8-10
-		expectedIDs := []int{8, 9, 10}
-		for i, result := range results {
-			if result.ID != expectedIDs[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-			}
-			if result.Bar.Name != "transaction" {
-				t.Errorf("Expected Bar.Name to be 'transaction', got '%s'", result.Bar.Name)
-			}
+		assert.Equal(t, []int{8, 9, 10}, fooIDs(results))
+		for _, result := range results {
+			assert.Equal(t, "transaction", result.Bar.Name)
 		}
 	})
 
@@ -102,23 +85,11 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 			Equal("$.name", "main-data"),
 			Equal("$.bar.name", "updated-in-tx"),
 		), 2, 0)
-		if err != nil {
-			t.Fatalf("Failed to query updated data with pagination: %v", err)
-		}
+		require.NoError(t, err, "failed to query updated data with pagination")
 
-		if len(results) != 2 {
-			t.Errorf("Expected 2 results, got %d", len(results))
-		}
-
-		// Verify we got items 1-2 with updated values
-		expectedIDs := []int{1, 2}
-		for i, result := range results {
-			if result.ID != expectedIDs[i] {
-				t.Errorf("Expected ID %d at position %d, got %d", expectedIDs[i], i, result.ID)
-			}
-			if result.Bar.Name != "updated-in-tx" {
-				t.Errorf("Expected Bar.Name to be 'updated-in-tx', got '%s'", result.Bar.Name)
-			}
+		assert.Equal(t, []int{1, 2}, fooIDs(results))
+		for _, result := range results {
+			assert.Equal(t, "updated-in-tx", result.Bar.Name)
 		}
 
 		// Query same items in main table - should have original values
@@ -126,18 +97,11 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 			Equal("$.name", "main-data"),
 			In("$.id", 1, 2),
 		), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query main data with pagination: %v", err)
-		}
+		require.NoError(t, err, "failed to query main data with pagination")
 
-		if len(mainResults) != 2 {
-			t.Errorf("Expected 2 results from main table, got %d", len(mainResults))
-		}
-
+		assert.Len(t, mainResults, 2)
 		for _, result := range mainResults {
-			if result.Bar.Name != "original" {
-				t.Errorf("Expected Bar.Name to be 'original' in main table, got '%s'", result.Bar.Name)
-			}
+			assert.Equal(t, "original", result.Bar.Name, "main table value")
 		}
 	})
 
@@ -145,68 +109,41 @@ func TestCombined_TransactionAndPagination(t *testing.T) {
 	t.Run("TransactionDataIsolation", func(t *testing.T) {
 		// Query from main table should not see tx-data
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.name", "tx-data"), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query with pagination from main table: %v", err)
-		}
-
-		if len(results) != 0 {
-			t.Errorf("Expected 0 results from main table for tx-data, got %d", len(results))
-		}
+		require.NoError(t, err, "failed to query with pagination from main table")
+		assert.Empty(t, results, "main table should not see tx-data")
 	})
 
 	// Test case 4: All data visible in transaction
 	t.Run("AllDataVisibleInTransaction", func(t *testing.T) {
 		// All data should be visible in transaction
 		results, err := tableTx.QueryManyWithPagination(ctx, All(), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query all data in transaction: %v", err)
-		}
-
-		if len(results) != 15 {
-			t.Errorf("Expected 15 total results in transaction, got %d", len(results))
-		}
+		require.NoError(t, err, "failed to query all data in transaction")
+		assert.Len(t, results, 15)
 	})
 
 	// Commit the transaction
 	err = tx.Commit()
-	if err != nil {
-		t.Fatalf("Failed to commit transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to commit transaction")
 
 	// Test case 5: Verify all data is now visible in main table after commit
 	t.Run("AllDataVisibleAfterCommit", func(t *testing.T) {
 		// Query all data from main table after commit
 		results, err := table.QueryManyWithPagination(ctx, All(), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query all data after commit: %v", err)
-		}
-
-		if len(results) != 15 {
-			t.Errorf("Expected 15 total results after commit, got %d", len(results))
-		}
+		require.NoError(t, err, "failed to query all data after commit")
+		assert.Len(t, results, 15)
 
 		// Verify tx-data is now visible
 		txResults, err := table.QueryManyWithPagination(ctx, Equal("$.name", "tx-data"), 3, 2)
-		if err != nil {
-			t.Fatalf("Failed to query tx-data after commit: %v", err)
-		}
-
-		if len(txResults) != 3 {
-			t.Errorf("Expected 3 tx-data results after commit, got %d", len(txResults))
-		}
+		require.NoError(t, err, "failed to query tx-data after commit")
+		assert.Len(t, txResults, 3)
 
 		// Verify updates are now visible
 		updatedResults, err := table.QueryManyWithPagination(ctx, And(
 			Equal("$.name", "main-data"),
 			Equal("$.bar.name", "updated-in-tx"),
 		), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query updated data after commit: %v", err)
-		}
-
-		if len(updatedResults) != 3 {
-			t.Errorf("Expected 3 updated results after commit, got %d", len(updatedResults))
-		}
+		require.NoError(t, err, "failed to query updated data after commit")
+		assert.Len(t, updatedResults, 3)
 	})
 }
 
@@ -230,16 +167,12 @@ func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 			},
 		}
 		err := table.Insert(ctx, foo)
-		if err != nil {
-			t.Fatalf("Failed to insert initial data: %v", err)
-		}
+		require.NoError(t, err, "failed to insert initial data")
 	}
 
 	// Start a transaction
 	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to begin transaction")
 
 	// Get a table with transaction
 	tableTx := table.WithTransaction(tx)
@@ -254,9 +187,7 @@ func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 			},
 		}
 		err := tableTx.Update(ctx, Equal("$.id", i), foo)
-		if err != nil {
-			t.Fatalf("Failed to update data in transaction: %v", err)
-		}
+		require.NoError(t, err, "failed to update data in transaction")
 	}
 
 	// Insert additional data in transaction
@@ -269,57 +200,33 @@ func TestCombined_TransactionRollbackWithPagination(t *testing.T) {
 			},
 		}
 		err := tableTx.Insert(ctx, foo)
-		if err != nil {
-			t.Fatalf("Failed to insert data in transaction: %v", err)
-		}
+		require.NoError(t, err, "failed to insert data in transaction")
 	}
 
 	// Verify changes are visible in transaction with pagination
 	results, err := tableTx.QueryManyWithPagination(ctx, Equal("$.bar.name", "will-be-rolled-back"), 3, 2)
-	if err != nil {
-		t.Fatalf("Failed to query data in transaction: %v", err)
-	}
-
-	if len(results) != 3 {
-		t.Errorf("Expected 3 results in transaction, got %d", len(results))
-	}
+	require.NoError(t, err, "failed to query data in transaction")
+	assert.Len(t, results, 3)
 
 	// Rollback the transaction
 	err = tx.Rollback()
-	if err != nil {
-		t.Fatalf("Failed to rollback transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to rollback transaction")
 
 	// Verify changes are not visible in main table after rollback
 	t.Run("DataNotVisibleAfterRollback", func(t *testing.T) {
 		// Query for updated data - should not exist
 		results, err := table.QueryManyWithPagination(ctx, Equal("$.bar.name", "will-be-rolled-back"), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query data after rollback: %v", err)
-		}
-
-		if len(results) != 0 {
-			t.Errorf("Expected 0 results after rollback, got %d", len(results))
-		}
+		require.NoError(t, err, "failed to query data after rollback")
+		assert.Empty(t, results)
 
 		// Verify original data is intact
 		origResults, err := table.QueryManyWithPagination(ctx, Equal("$.bar.name", "original"), 0, 0)
-		if err != nil {
-			t.Fatalf("Failed to query original data after rollback: %v", err)
-		}
-
-		if len(origResults) != 5 {
-			t.Errorf("Expected 5 original results after rollback, got %d", len(origResults))
-		}
+		require.NoError(t, err, "failed to query original data after rollback")
+		assert.Len(t, origResults, 5)
 
 		// Verify total count is still 5
 		count, err := table.Count(ctx)
-		if err != nil {
-			t.Fatalf("Failed to count data after rollback: %v", err)
-		}
-
-		if count != 5 {
-			t.Errorf("Expected count of 5 after rollback, got %d", count)
-		}
+		require.NoError(t, err, "failed to count data after rollback")
+		assert.EqualValues(t, 5, count)
 	})
 }
