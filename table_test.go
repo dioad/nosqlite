@@ -284,12 +284,15 @@ func TestTable_CreateIndex(t *testing.T) {
 
 	if name != "idx_nosqlite_foo_name_bar__name" {
 		t.Errorf("expected idx_foo_name_bar__name got %s", name)
-
 	}
 
-	_, err = table.hasIndex(ctx, name)
+	var got string
+	err = store.db.QueryRowContext(ctx,
+		"SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?",
+		table.Name, name,
+	).Scan(&got)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("expected index %q to exist: %v", name, err)
 	}
 }
 

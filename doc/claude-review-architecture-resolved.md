@@ -37,3 +37,12 @@
 - **Resolved in:** (this commit)
 - **Description:** Both methods deferred a closure that assigned `rows.Close()`'s error into the local `err` variable "so it isn't lost" — but the enclosing function signature used unnamed return values (`([]T, error)`). `return results, nil` evaluates and binds the return values *before* the deferred closure runs, so mutating the local `err` afterward had no effect on what was already returned. Duplicated verbatim at both call sites.
 - **Outcome:** Both methods now use named return values (`(results []T, err error)`), so the deferred `rows.Close()` assignment actually reaches the caller when a close fails after a successful, fully-drained iteration. Simplified the deferred closure's nested `if closeErr != nil { if err == nil { ... } }` into a single `if closeErr != nil && err == nil`. A genuine `rows.Close()` failure is very difficult to force deterministically against the real SQLite driver without introducing a mock abstraction this small library doesn't otherwise have (and which would be disproportionate to add solely for this), so this was verified via the well-established Go named-return/defer semantics plus the full existing test suite continuing to pass unmodified, rather than a new forced-failure test. Complexity delta: both methods 12→10 (the nested defer condition flattened). `go build`, `go vet`, and `go test -race ./...` all pass.
+
+### 5. `hasIndex` always returns `true` and has no caller that uses its result — delete it ✅ Resolved
+
+- **File(s):** `table.go`
+- **Dimension(s):** Correctness
+- **Priority:** Medium
+- **Resolved in:** (this commit)
+- **Description:** `hasIndex` ran a `SELECT ... FROM sqlite_master` via `db.ExecContext`, which discards any result rows, then unconditionally returned `true` unless the database itself errored — it reported an index exists regardless of whether a matching row was found. Its only caller, `TestTable_CreateIndex`, discarded the boolean.
+- **Outcome:** Deleted `hasIndex` entirely. `TestTable_CreateIndex`'s call to it (which only checked for an error that could never meaningfully occur) was replaced with a direct `sqlite_master` query that actually asserts the index row exists — the same pattern `TestTable_CreateIndexes_BareFieldNamesDoNotCollide` already used elsewhere in the same file. Complexity delta: n/a (function removed). `go build`, `go vet`, and `go test -race ./...` all pass.

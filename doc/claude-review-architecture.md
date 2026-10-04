@@ -12,15 +12,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 ## Findings
 
-### 5. `hasIndex` always returns `true` and has no caller that uses its result — delete it
-
-- **File(s):** `table.go:330-337`
-- **Dimension(s):** Correctness
-- **Priority:** Medium
-- **Status:** Open
-- **Description:** `hasIndex` runs a `SELECT ... FROM sqlite_master` via `db.ExecContext`, which discards any result rows, then unconditionally returns `true` unless the database itself errored — it reports an index exists regardless of whether a matching row was found. This is already called out in `table_test.go:129-130`'s comment ("Query sqlite_master directly rather than via `hasIndex`, which reports true regardless of whether a matching row was actually found"), and `TestTable_CreateIndex` (table_test.go:290) calls it only to discard the boolean. The function is unexported with no production caller.
-- **Recommended fix:** Delete `hasIndex`. It is unused, its one test caller already ignores its result, and it has no correct behavior to fix toward without a caller to define what "exists" should mean (by name? by covered fields?).
-
 ### 6. No executable `Example` functions and no `examples/` directory, despite the project's own documentation rules requiring both
 
 - **File(s):** README.md; absence of `examples/` directory and any `func Example...` in `*_test.go`
@@ -63,7 +54,6 @@ _Reviewed: 2026-10-03 — branch `main` (f5b7682)_
 
 | # | Priority | Status | Finding | File(s) |
 |---|----------|--------|---------|---------|
-| 5 | Medium   | Open   | `hasIndex` always returns true and has no real caller | table.go |
 | 6 | Medium   | Open   | No executable `Example` functions or `examples/` directory | README.md |
 | 7 | Medium   | Open   | Tests don't use testify, contradicting project's own rule | *_test.go (all) |
 | 8 | Low      | Open   | `Update` discards `RowsAffected`, unlike `Delete` (breaking change if fixed) | table.go |

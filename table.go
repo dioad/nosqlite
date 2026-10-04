@@ -374,16 +374,6 @@ func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, e
 	return indexName, err
 }
 
-// hasIndex returns true if the index exists.
-func (n *Table[T]) hasIndex(ctx context.Context, indexName string) (bool, error) {
-	_, err := n.store.db.ExecContext(ctx, "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?", n.Name, indexName)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
 // Delete removes items from the table that match the given clause.
 // Returns the number of rows deleted and any error.
 func (n *Table[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
