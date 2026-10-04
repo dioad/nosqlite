@@ -785,3 +785,27 @@ func TestTable_CreateIndexes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, names, 2)
 }
+
+// TestTable_UpdateWithCount exercises UpdateWithCount's rows-affected
+// return, including the case Update's own signature can't distinguish: a
+// clause that matches nothing.
+func TestTable_UpdateWithCount(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](ctx, t, store)
+
+	err := table.Insert(ctx, Foo{Name: "update-with-count", Bar: Bar{Name: "original"}})
+	require.NoError(t, err)
+
+	count, err := table.UpdateWithCount(ctx, Equal("$.name", "update-with-count"), Foo{Name: "update-with-count", Bar: Bar{Name: "updated"}})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, count)
+
+	count, err = table.UpdateWithCount(ctx, Equal("$.name", "no-such-row"), Foo{})
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, count)
+}

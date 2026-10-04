@@ -159,38 +159,42 @@ func (t *TableWithTx[T]) All(ctx context.Context) ([]T, error) {
 	return t.QueryMany(ctx, All())
 }
 
-// Update changes one or more items in the table within the transaction.
-func (t *TableWithTx[T]) Update(ctx context.Context, clause Clause, newVal T) error {
+// UpdateWithCount changes one or more items in the table within the
+// transaction that match the given clause, like Update, and additionally
+// returns the number of rows affected.
+func (t *TableWithTx[T]) UpdateWithCount(ctx context.Context, clause Clause, newVal T) (int64, error) {
 	// Check if context is already canceled
 	if ctx.Err() != nil {
-		return fmt.Errorf("context error before update: %w", ctx.Err())
+		return 0, fmt.Errorf("context error before update: %w", ctx.Err())
 	}
 
 	b, err := json.Marshal(newVal)
 	if err != nil {
-		return fmt.Errorf("failed to marshal data: %w", err)
+		return 0, fmt.Errorf("failed to marshal data: %w", err)
 	}
 
 	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", t.name, clause.Clause())
 	params := append([]any{string(b)}, clause.Values()...)
 	result, err := t.tx.ExecContext(ctx, updateStatement, params...)
 	if err != nil {
-		return fmt.Errorf("failed to update data: %w", err)
+		return 0, fmt.Errorf("failed to update data: %w", err)
 	}
 
-	// Check if any rows were affected (optional)
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
-	if rowsAffected == 0 {
-		// No rows were updated, but this isn't necessarily an error
-		// The caller can check if the update affected any rows if needed
-		return nil
-	}
+	return rowsAffected, nil
+}
 
-	return nil
+// Update changes one or more items in the table within the transaction.
+// The new data is serialized to JSON and replaces the existing data. Use
+// UpdateWithCount to also learn how many rows were affected.
+func (t *TableWithTx[T]) Update(ctx context.Context, clause Clause, newVal T) error {
+	_, err := t.UpdateWithCount(ctx, clause, newVal)
+
+	return err
 }
 
 // Delete removes items from the table within the transaction.
@@ -500,37 +504,40 @@ func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, l
 	return results, nil
 }
 
-// Update changes one or more items in the table that match the given clause.
-// The new data is serialized to JSON and replaces the existing data.
-func (n *Table[T]) Update(ctx context.Context, clause Clause, newVal T) error {
+// UpdateWithCount changes one or more items in the table that match the
+// given clause, like Update, and additionally returns the number of rows
+// affected.
+func (n *Table[T]) UpdateWithCount(ctx context.Context, clause Clause, newVal T) (int64, error) {
 	// Check if context is already canceled
 	if ctx.Err() != nil {
-		return fmt.Errorf("context error before update: %w", ctx.Err())
+		return 0, fmt.Errorf("context error before update: %w", ctx.Err())
 	}
 
 	b, err := json.Marshal(newVal)
 	if err != nil {
-		return fmt.Errorf("failed to marshal data: %w", err)
+		return 0, fmt.Errorf("failed to marshal data: %w", err)
 	}
 
 	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
 	params := append([]any{string(b)}, clause.Values()...)
 	result, err := n.store.db.ExecContext(ctx, updateStatement, params...)
 	if err != nil {
-		return fmt.Errorf("failed to update data: %w", err)
+		return 0, fmt.Errorf("failed to update data: %w", err)
 	}
 
-	// Check if any rows were affected (optional)
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
-	if rowsAffected == 0 {
-		// No rows were updated, but this isn't necessarily an error
-		// The caller can check if the update affected any rows if needed
-		return nil
-	}
+	return rowsAffected, nil
+}
 
-	return nil
+// Update changes one or more items in the table that match the given clause.
+// The new data is serialized to JSON and replaces the existing data. Use
+// UpdateWithCount to also learn how many rows were affected.
+func (n *Table[T]) Update(ctx context.Context, clause Clause, newVal T) error {
+	_, err := n.UpdateWithCount(ctx, clause, newVal)
+
+	return err
 }

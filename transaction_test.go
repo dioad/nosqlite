@@ -222,3 +222,34 @@ func TestTransaction_Isolation(t *testing.T) {
 	require.NotNil(t, mainResult, "expected to find data in main table after commit")
 	assert.Equal(t, "updated-in-tx", mainResult.Bar.Name)
 }
+
+// TestTableWithTx_UpdateWithCount exercises UpdateWithCount's rows-affected
+// return within a transaction, including the case Update's own signature
+// can't distinguish: a clause that matches nothing.
+func TestTableWithTx_UpdateWithCount(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](ctx, t, store)
+	tx, err := store.Begin(ctx)
+	require.NoError(t, err, "failed to begin transaction")
+	defer func() {
+		assert.NoError(t, tx.Rollback())
+	}()
+
+	tableTx := table.WithTransaction(tx)
+
+	err = tableTx.Insert(ctx, Foo{Name: "update-with-count", Bar: Bar{Name: "original"}})
+	require.NoError(t, err)
+
+	count, err := tableTx.UpdateWithCount(ctx, Equal("$.name", "update-with-count"), Foo{Name: "update-with-count", Bar: Bar{Name: "updated"}})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, count)
+
+	count, err = tableTx.UpdateWithCount(ctx, Equal("$.name", "no-such-row"), Foo{})
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, count)
+}
