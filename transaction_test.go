@@ -3,6 +3,9 @@ package nosqlite
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTransaction_Commit(t *testing.T) {
@@ -17,9 +20,7 @@ func TestTransaction_Commit(t *testing.T) {
 
 	// Start a transaction
 	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to begin transaction")
 
 	// Get a table with transaction
 	tableTx := table.WithTransaction(tx)
@@ -33,44 +34,26 @@ func TestTransaction_Commit(t *testing.T) {
 	}
 
 	err = tableTx.Insert(ctx, foo)
-	if err != nil {
-		t.Fatalf("Failed to insert data in transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to insert data in transaction")
 
 	// Verify data exists in transaction but not in main table yet
 	txResult, err := tableTx.QueryOne(ctx, Equal("$.name", "transaction-commit"))
-	if err != nil {
-		t.Fatalf("Failed to query data in transaction: %v", err)
-	}
-	if txResult == nil {
-		t.Fatal("Expected to find data in transaction, but got nil")
-	}
+	require.NoError(t, err, "failed to query data in transaction")
+	require.NotNil(t, txResult, "expected to find data in transaction")
 
 	mainResult, err := table.QueryOne(ctx, Equal("$.name", "transaction-commit"))
-	if err != nil {
-		t.Fatalf("Failed to query data in main table: %v", err)
-	}
-	if mainResult != nil {
-		t.Fatal("Expected not to find data in main table yet, but got data")
-	}
+	require.NoError(t, err, "failed to query data in main table")
+	require.Nil(t, mainResult, "expected not to find data in main table yet")
 
 	// Commit the transaction
 	err = tx.Commit()
-	if err != nil {
-		t.Fatalf("Failed to commit transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to commit transaction")
 
 	// Verify data now exists in main table
 	mainResult, err = table.QueryOne(ctx, Equal("$.name", "transaction-commit"))
-	if err != nil {
-		t.Fatalf("Failed to query data in main table after commit: %v", err)
-	}
-	if mainResult == nil {
-		t.Fatal("Expected to find data in main table after commit, but got nil")
-	}
-	if mainResult.Bar.Name != "commit" {
-		t.Errorf("Expected Bar.Name to be 'commit', got '%s'", mainResult.Bar.Name)
-	}
+	require.NoError(t, err, "failed to query data in main table after commit")
+	require.NotNil(t, mainResult, "expected to find data in main table after commit")
+	assert.Equal(t, "commit", mainResult.Bar.Name)
 }
 
 func TestTransaction_Rollback(t *testing.T) {
@@ -85,9 +68,7 @@ func TestTransaction_Rollback(t *testing.T) {
 
 	// Start a transaction
 	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to begin transaction")
 
 	// Get a table with transaction
 	tableTx := table.WithTransaction(tx)
@@ -101,33 +82,21 @@ func TestTransaction_Rollback(t *testing.T) {
 	}
 
 	err = tableTx.Insert(ctx, foo)
-	if err != nil {
-		t.Fatalf("Failed to insert data in transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to insert data in transaction")
 
 	// Verify data exists in transaction
 	txResult, err := tableTx.QueryOne(ctx, Equal("$.name", "transaction-rollback"))
-	if err != nil {
-		t.Fatalf("Failed to query data in transaction: %v", err)
-	}
-	if txResult == nil {
-		t.Fatal("Expected to find data in transaction, but got nil")
-	}
+	require.NoError(t, err, "failed to query data in transaction")
+	require.NotNil(t, txResult, "expected to find data in transaction")
 
 	// Rollback the transaction
 	err = tx.Rollback()
-	if err != nil {
-		t.Fatalf("Failed to rollback transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to rollback transaction")
 
 	// Verify data does not exist in main table
 	mainResult, err := table.QueryOne(ctx, Equal("$.name", "transaction-rollback"))
-	if err != nil {
-		t.Fatalf("Failed to query data in main table after rollback: %v", err)
-	}
-	if mainResult != nil {
-		t.Fatal("Expected not to find data in main table after rollback, but got data")
-	}
+	require.NoError(t, err, "failed to query data in main table after rollback")
+	assert.Nil(t, mainResult, "expected not to find data in main table after rollback")
 }
 
 func TestTableWithTx_CRUD(t *testing.T) {
@@ -142,9 +111,7 @@ func TestTableWithTx_CRUD(t *testing.T) {
 
 	// Start a transaction
 	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to begin transaction")
 
 	// Get a table with transaction
 	tableTx := table.WithTransaction(tx)
@@ -158,70 +125,42 @@ func TestTableWithTx_CRUD(t *testing.T) {
 	}
 
 	err = tableTx.Insert(ctx, foo)
-	if err != nil {
-		t.Fatalf("Failed to insert data in transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to insert data in transaction")
 
 	// Test QueryOne
 	result, err := tableTx.QueryOne(ctx, Equal("$.name", "tx-crud"))
-	if err != nil {
-		t.Fatalf("Failed to query data in transaction: %v", err)
-	}
-	if result == nil {
-		t.Fatal("Expected to find data in transaction, but got nil")
-	}
-	if result.Bar.Name != "original" {
-		t.Errorf("Expected Bar.Name to be 'original', got '%s'", result.Bar.Name)
-	}
+	require.NoError(t, err, "failed to query data in transaction")
+	require.NotNil(t, result, "expected to find data in transaction")
+	assert.Equal(t, "original", result.Bar.Name)
 
 	// Test Update
 	foo.Bar.Name = "updated"
 	err = tableTx.Update(ctx, Equal("$.name", "tx-crud"), foo)
-	if err != nil {
-		t.Fatalf("Failed to update data in transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to update data in transaction")
 
 	// Verify update
 	result, err = tableTx.QueryOne(ctx, Equal("$.name", "tx-crud"))
-	if err != nil {
-		t.Fatalf("Failed to query data after update: %v", err)
-	}
-	if result == nil {
-		t.Fatal("Expected to find data after update, but got nil")
-	}
-	if result.Bar.Name != "updated" {
-		t.Errorf("Expected Bar.Name to be 'updated', got '%s'", result.Bar.Name)
-	}
+	require.NoError(t, err, "failed to query data after update")
+	require.NotNil(t, result, "expected to find data after update")
+	assert.Equal(t, "updated", result.Bar.Name)
 
 	// Test Count
 	count, err := tableTx.Count(ctx)
-	if err != nil {
-		t.Fatalf("Failed to count data in transaction: %v", err)
-	}
-	if count != 1 {
-		t.Errorf("Expected count to be 1, got %d", count)
-	}
+	require.NoError(t, err, "failed to count data in transaction")
+	assert.EqualValues(t, 1, count)
 
 	// Test Delete
 	_, err = tableTx.Delete(ctx, Equal("$.name", "tx-crud"))
-	if err != nil {
-		t.Fatalf("Failed to delete data in transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to delete data in transaction")
 
 	// Verify delete
 	result, err = tableTx.QueryOne(ctx, Equal("$.name", "tx-crud"))
-	if err != nil {
-		t.Fatalf("Failed to query data after delete: %v", err)
-	}
-	if result != nil {
-		t.Fatal("Expected not to find data after delete, but got data")
-	}
+	require.NoError(t, err, "failed to query data after delete")
+	assert.Nil(t, result, "expected not to find data after delete")
 
 	// Commit the transaction
 	err = tx.Commit()
-	if err != nil {
-		t.Fatalf("Failed to commit transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to commit transaction")
 }
 
 func TestTransaction_Isolation(t *testing.T) {
@@ -242,15 +181,11 @@ func TestTransaction_Isolation(t *testing.T) {
 		},
 	}
 	err := table.Insert(ctx, initialFoo)
-	if err != nil {
-		t.Fatalf("Failed to insert initial data: %v", err)
-	}
+	require.NoError(t, err, "failed to insert initial data")
 
 	// Start a transaction
 	tx, err := store.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to begin transaction")
 
 	// Get a table with transaction
 	tableTx := table.WithTransaction(tx)
@@ -263,49 +198,27 @@ func TestTransaction_Isolation(t *testing.T) {
 		},
 	}
 	err = tableTx.Update(ctx, Equal("$.name", "isolation-test"), updatedFoo)
-	if err != nil {
-		t.Fatalf("Failed to update data in transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to update data in transaction")
 
 	// Verify data is updated in transaction
 	txResult, err := tableTx.QueryOne(ctx, Equal("$.name", "isolation-test"))
-	if err != nil {
-		t.Fatalf("Failed to query data in transaction: %v", err)
-	}
-	if txResult == nil {
-		t.Fatal("Expected to find data in transaction, but got nil")
-	}
-	if txResult.Bar.Name != "updated-in-tx" {
-		t.Errorf("Expected Bar.Name to be 'updated-in-tx', got '%s'", txResult.Bar.Name)
-	}
+	require.NoError(t, err, "failed to query data in transaction")
+	require.NotNil(t, txResult, "expected to find data in transaction")
+	assert.Equal(t, "updated-in-tx", txResult.Bar.Name)
 
 	// Verify data is not updated in main table
 	mainResult, err := table.QueryOne(ctx, Equal("$.name", "isolation-test"))
-	if err != nil {
-		t.Fatalf("Failed to query data in main table: %v", err)
-	}
-	if mainResult == nil {
-		t.Fatal("Expected to find data in main table, but got nil")
-	}
-	if mainResult.Bar.Name != "initial" {
-		t.Errorf("Expected Bar.Name to be 'initial', got '%s'", mainResult.Bar.Name)
-	}
+	require.NoError(t, err, "failed to query data in main table")
+	require.NotNil(t, mainResult, "expected to find data in main table")
+	assert.Equal(t, "initial", mainResult.Bar.Name)
 
 	// Commit the transaction
 	err = tx.Commit()
-	if err != nil {
-		t.Fatalf("Failed to commit transaction: %v", err)
-	}
+	require.NoError(t, err, "failed to commit transaction")
 
 	// Verify data is now updated in main table
 	mainResult, err = table.QueryOne(ctx, Equal("$.name", "isolation-test"))
-	if err != nil {
-		t.Fatalf("Failed to query data in main table after commit: %v", err)
-	}
-	if mainResult == nil {
-		t.Fatal("Expected to find data in main table after commit, but got nil")
-	}
-	if mainResult.Bar.Name != "updated-in-tx" {
-		t.Errorf("Expected Bar.Name to be 'updated-in-tx', got '%s'", mainResult.Bar.Name)
-	}
+	require.NoError(t, err, "failed to query data in main table after commit")
+	require.NotNil(t, mainResult, "expected to find data in main table after commit")
+	assert.Equal(t, "updated-in-tx", mainResult.Bar.Name)
 }
