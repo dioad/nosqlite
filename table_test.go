@@ -735,7 +735,7 @@ func TestDeleteFromTables(t *testing.T) {
 
 	tableTwoItems, err = tableTwo.All(ctx)
 	require.NoError(t, err)
-	assert.Len(t, tableTwoItems, 0)
+	assert.Empty(t, tableTwoItems)
 }
 
 type ParentStruct struct {

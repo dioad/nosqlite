@@ -108,6 +108,13 @@ func (t *TableWithTx[T]) QueryMany(ctx context.Context, clause Clause) ([]T, err
 // The limit parameter controls the maximum number of items to return.
 // The offset parameter controls the number of items to skip.
 // If limit is 0, all matching items are returned.
+//
+// err must be named so the deferred rows.Close() below can still reach the
+// caller after a successful, fully-drained iteration; Go requires every
+// result in one list to be named if any is, so results is named too even
+// though the defer never touches it.
+//
+//nolint:nonamedreturns
 func (t *TableWithTx[T]) QueryManyWithPagination(ctx context.Context, clause Clause, limit, offset uint64) (results []T, err error) {
 	var data string
 	results = make([]T, 0)
@@ -440,6 +447,13 @@ func (n *Table[T]) QueryMany(ctx context.Context, clause Clause) ([]T, error) {
 // The offset parameter controls the number of items to skip.
 // If limit is 0, all matching items are returned.
 // Returns an empty slice if no items match the clause.
+//
+// err must be named so the deferred rows.Close() below can still reach the
+// caller after a successful, fully-drained iteration; Go requires every
+// result in one list to be named if any is, so results is named too even
+// though the defer never touches it.
+//
+//nolint:nonamedreturns
 func (n *Table[T]) QueryManyWithPagination(ctx context.Context, clause Clause, limit, offset uint64) (results []T, err error) {
 	var data string
 	results = make([]T, 0)

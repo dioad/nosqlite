@@ -10,49 +10,70 @@ import (
 	"github.com/dioad/nosqlite"
 )
 
+// exampleUser is the document type used by Example.
+type exampleUser struct {
+	ID   string   `json:"id"`
+	Name string   `json:"name"`
+	Age  int      `json:"age"`
+	Tags []string `json:"tags"`
+}
+
 // Example demonstrates the basic workflow: open a store, create a table for
 // a document type, insert a document, and query it back with a combined
 // clause. This mirrors the README's Quick Start - if this example's output
 // stops matching, the README is out of date.
 func Example() {
-	dir, err := os.MkdirTemp("", "nosqlite-example")
-	if err != nil {
+	if err := runExample(); err != nil {
 		log.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	// Output:
+	// Found: Alice (30)
+}
+
+// runExample holds Example's logic in a function that returns its error
+// instead of calling log.Fatal directly, so every defer below actually runs
+// on every path - calling log.Fatal after registering a defer would skip it,
+// since os.Exit terminates the process before deferred calls run.
+func runExample() (err error) {
+	dir, mkdirErr := os.MkdirTemp("", "nosqlite-example")
+	if mkdirErr != nil {
+		return mkdirErr
+	}
+	defer func() {
+		if rerr := os.RemoveAll(dir); rerr != nil && err == nil {
+			err = rerr
+		}
+	}()
 
 	ctx := context.Background()
 
 	store, err := nosqlite.NewStore(filepath.Join(dir, "users.db"))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	defer store.Close()
+	defer func() {
+		if cerr := store.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
-	type User struct {
-		ID   string   `json:"id"`
-		Name string   `json:"name"`
-		Age  int      `json:"age"`
-		Tags []string `json:"tags"`
-	}
-
-	users, err := nosqlite.NewTable[User](ctx, store)
+	users, err := nosqlite.NewTable[exampleUser](ctx, store)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if _, err := users.CreateIndex(ctx, "id"); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	newUser := User{
+	newUser := exampleUser{
 		ID:   "1",
 		Name: "Alice",
 		Age:  30,
 		Tags: []string{"go", "sqlite"},
 	}
 	if err := users.Insert(ctx, newUser); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	clause := nosqlite.And(
@@ -62,14 +83,14 @@ func Example() {
 
 	foundUsers, err := users.QueryMany(ctx, clause)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	for _, u := range foundUsers {
 		fmt.Printf("Found: %s (%d)\n", u.Name, u.Age)
 	}
-	// Output:
-	// Found: Alice (30)
+
+	return nil
 }
 
 // ExampleAnd demonstrates combining multiple clauses with And and Or, as
