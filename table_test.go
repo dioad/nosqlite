@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	_ "github.com/glebarez/go-sqlite/compat"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type Bar struct {
@@ -32,9 +34,7 @@ func helperTempFile(t *testing.T) string {
 
 	tmpDir := os.TempDir()
 	f, err := os.CreateTemp(tmpDir, "test-nosqlite.db")
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	return f.Name()
 }
@@ -43,9 +43,7 @@ func helperOpenStoreWithFile(t *testing.T, fileName string) *Store {
 	t.Helper()
 
 	store, err := NewStore(fileName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return store
 }
@@ -61,19 +59,14 @@ func helperOpenStore(t *testing.T) *Store {
 func helperCloseStore(t *testing.T, store *Store) {
 	t.Helper()
 
-	err := store.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, store.Close())
 }
 
 func helperTable[T any](ctx context.Context, t *testing.T, store *Store) *Table[T] {
 	t.Helper()
 
 	table, err := NewTable[T](ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return table
 }
@@ -96,9 +89,7 @@ func TestEscapeFieldName(t *testing.T) {
 
 	for _, test := range tests {
 		result := escapeFieldName(test.field)
-		if result != test.expected {
-			t.Errorf("expected %s got %s", test.expected, result)
-		}
+		assert.Equal(t, test.expected, result)
 	}
 }
 
@@ -118,13 +109,8 @@ func TestTable_CreateIndexes_BareFieldNamesDoNotCollide(t *testing.T) {
 	table := helperTable[Foo](ctx, t, store)
 
 	names, err := table.CreateIndexes(ctx, []string{"name"}, []string{"id"})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if names[0] == names[1] {
-		t.Fatalf("expected distinct index names for distinct fields, got %q for both", names[0])
-	}
+	require.NoError(t, err)
+	require.NotEqual(t, names[0], names[1], "expected distinct index names for distinct fields")
 
 	// Query sqlite_master directly rather than via hasIndex, which reports
 	// true regardless of whether a matching row was actually found.
@@ -134,9 +120,7 @@ func TestTable_CreateIndexes_BareFieldNamesDoNotCollide(t *testing.T) {
 			"SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?",
 			table.Name, name,
 		).Scan(&got)
-		if err != nil {
-			t.Errorf("expected index %q to exist: %v", name, err)
-		}
+		assert.NoError(t, err, "expected index %q to exist", name)
 	}
 }
 
@@ -144,18 +128,14 @@ func TestTableName(t *testing.T) {
 	t.Parallel()
 
 	result := tableName[Foo]()
-	if result != "nosqlite_foo" {
-		t.Errorf("expected nosqlite_foo got %s", result)
-	}
+	assert.Equal(t, "nosqlite_foo", result)
 }
 
 func TestTableNameWithPointer(t *testing.T) {
 	t.Parallel()
 
 	result := tableName[*Foo]()
-	if result != "nosqlite_foo" {
-		t.Errorf("expected nosqlite_foo got %s", result)
-	}
+	assert.Equal(t, "nosqlite_foo", result)
 }
 
 func TestJoinEscapedFieldNames(t *testing.T) {
@@ -173,9 +153,7 @@ func TestJoinEscapedFieldNames(t *testing.T) {
 
 	for _, test := range tests {
 		result := joinEscapedFieldNames(test.fields...)
-		if result != test.expected {
-			t.Errorf("expected %s got %s", test.expected, result)
-		}
+		assert.Equal(t, test.expected, result)
 	}
 }
 
@@ -196,20 +174,14 @@ func TestTable_Insert(t *testing.T) {
 	}
 
 	err := table.Insert(ctx, tag)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	c := Equal("$.name", "test")
 
 	val, err := table.QueryOne(ctx, c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if val.Bar.Name != "insert" {
-		t.Errorf("expected japan got %s", val.Bar.Name)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, val)
+	assert.Equal(t, "insert", val.Bar.Name)
 }
 
 func TestTable_Update(t *testing.T) {
@@ -237,34 +209,24 @@ func TestTable_Update(t *testing.T) {
 	}
 
 	err := table.Insert(ctx, foo1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	updateClause := Equal("$.name", "test-one")
 
 	err = table.Update(ctx, updateClause, foo2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	c1 := Equal("$.name", "test-one")
 
 	_, err = table.QueryOne(ctx, c1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	c2 := Equal("$.name", "test-two")
 
 	val, err := table.QueryOne(ctx, c2)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if val.Bar.Name != "update-two" {
-		t.Errorf("expected update-two got %s", val.Bar.Name)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, val)
+	assert.Equal(t, "update-two", val.Bar.Name)
 }
 
 func TestTable_CreateIndex(t *testing.T) {
@@ -278,22 +240,15 @@ func TestTable_CreateIndex(t *testing.T) {
 	table := helperTable[*Foo](ctx, t, store)
 
 	name, err := table.CreateIndex(ctx, "$.name", "$.bar.name")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if name != "idx_nosqlite_foo_name_bar__name" {
-		t.Errorf("expected idx_foo_name_bar__name got %s", name)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "idx_nosqlite_foo_name_bar__name", name)
 
 	var got string
 	err = store.db.QueryRowContext(ctx,
 		"SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND name=?",
 		table.Name, name,
 	).Scan(&got)
-	if err != nil {
-		t.Fatalf("expected index %q to exist: %v", name, err)
-	}
+	require.NoError(t, err, "expected index %q to exist", name)
 }
 
 // TestTable_CreateIndex_RejectsInvalidField is a regression test: CreateIndex
@@ -312,9 +267,7 @@ func TestTable_CreateIndex_RejectsInvalidField(t *testing.T) {
 	table := helperTable[Foo](ctx, t, store)
 
 	_, err := table.CreateIndex(ctx, "$.name' ) -- ")
-	if err == nil {
-		t.Fatal("expected error for a field containing characters outside a JSON path, got nil")
-	}
+	require.Error(t, err, "expected error for a field containing characters outside a JSON path")
 }
 
 func TestTable_Count(t *testing.T) {
@@ -343,18 +296,12 @@ func TestTable_Count(t *testing.T) {
 
 	for _, tag := range foos {
 		err := table.Insert(ctx, tag)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	count, err := table.Count(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 2 {
-		t.Errorf("expected 2 got %d", count)
-	}
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, count)
 }
 
 func TestTable_QueryOneNoResults(t *testing.T) {
@@ -370,12 +317,8 @@ func TestTable_QueryOneNoResults(t *testing.T) {
 	c := Equal("$.name", "nothing")
 
 	res, err := table.QueryOne(ctx, c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res != nil {
-		t.Fatal("expected nil result")
-	}
+	require.NoError(t, err)
+	assert.Nil(t, res)
 }
 
 func TestTable_QueryMany(t *testing.T) {
@@ -402,20 +345,14 @@ func TestTable_QueryMany(t *testing.T) {
 
 	for _, tag := range foos {
 		err := table.Insert(ctx, tag)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	c := Equal("$.name", "select-many")
 
 	vals, err := table.QueryMany(ctx, c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(vals) != 2 {
-		t.Errorf("expected 2 got %d", len(vals))
-	}
+	require.NoError(t, err)
+	assert.Len(t, vals, 2)
 }
 
 func TestTable_All(t *testing.T) {
@@ -442,18 +379,12 @@ func TestTable_All(t *testing.T) {
 
 	for _, tag := range foos {
 		err := table.Insert(ctx, tag)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	vals, err := table.All(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(vals) != 2 {
-		t.Errorf("expected 2 got %d", len(vals))
-	}
+	require.NoError(t, err)
+	assert.Len(t, vals, 2)
 }
 
 func TestTable_QueryOneInjectInValue(t *testing.T) {
@@ -474,18 +405,11 @@ func TestTable_QueryOneInjectInValue(t *testing.T) {
 	}
 
 	err := table.Insert(ctx, foo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	res, err := table.QueryOne(ctx, Equal("$.name", "injection' OR 1=1 --"))
-	if err != nil {
-		t.Fatal("expected error got nil")
-	}
-
-	if res != nil {
-		t.Fatal("expected nil result")
-	}
+	require.NoError(t, err)
+	assert.Nil(t, res)
 }
 
 func TestTable_QueryBool(t *testing.T) {
@@ -507,36 +431,19 @@ func TestTable_QueryBool(t *testing.T) {
 	}
 
 	err := table.Insert(ctx, foo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	res, err := table.QueryOne(ctx, True("$.bool"))
-	if err != nil {
-		t.Fatalf("expected  nil error, got %v", err)
-	}
-
-	if res == nil {
-		t.Fatal("expected non nil result")
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, res)
 
 	res, err = table.QueryOne(ctx, False("$.bool"))
-	if err != nil {
-		t.Fatalf("expected  nil error, got %v", err)
-	}
-
-	if res != nil {
-		t.Fatal("expected  nil result")
-	}
+	require.NoError(t, err)
+	assert.Nil(t, res)
 
 	res, err = table.QueryOne(ctx, Equal("$.bool", true))
-	if err != nil {
-		t.Fatalf("expected  nil error, got %v", err)
-	}
-
-	if res == nil {
-		t.Fatal("expected non nil result")
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, res)
 }
 
 // numericIDFoo exercises numeric types other than the literal int/float64
@@ -563,20 +470,12 @@ func TestTable_QueryOneNonLiteralNumericType(t *testing.T) {
 	table := helperTable[numericIDFoo](ctx, t, store)
 
 	err := table.Insert(ctx, numericIDFoo{ID: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	res, err := table.QueryOne(ctx, Equal[int64]("$.id", int64(7)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res == nil {
-		t.Fatal("expected to find the row by its int64 id, got nil")
-	}
-	if res.ID != 7 {
-		t.Errorf("expected ID 7, got %d", res.ID)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, res, "expected to find the row by its int64 id")
+	assert.EqualValues(t, 7, res.ID)
 }
 
 // TestTable_QueryOneInjectInField is a regression test for the field path
@@ -603,17 +502,11 @@ func TestTable_QueryOneInjectInField(t *testing.T) {
 	}
 
 	err := table.Insert(ctx, foo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	res, err := table.QueryOne(ctx, Equal("$.name' = 'injection' OR '1'='1", "injection"))
-	if err != nil {
-		t.Fatalf("expected no error for a bound (non-executable) field path, got: %v", err)
-	}
-	if res != nil {
-		t.Fatal("expected nil result: a malicious field path must not widen the match")
-	}
+	require.NoError(t, err, "expected no error for a bound (non-executable) field path")
+	assert.Nil(t, res, "a malicious field path must not widen the match")
 }
 
 func TestTable_Delete(t *testing.T) {
@@ -634,36 +527,22 @@ func TestTable_Delete(t *testing.T) {
 	}
 
 	err := table.Insert(ctx, foo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	c := Equal("$.name", "delete")
 
 	rowsAffected, err := table.Delete(ctx, c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rowsAffected != 1 {
-		t.Fatalf("expected 1 row affected, got %d", rowsAffected)
-	}
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rowsAffected)
 
 	res, err := table.QueryOne(ctx, c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res != nil {
-		t.Fatal("expected nil result")
-	}
+	require.NoError(t, err)
+	assert.Nil(t, res)
 
 	// Verify count is 0 when no rows match
 	rowsAffected, err = table.Delete(ctx, c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rowsAffected != 0 {
-		t.Fatalf("expected 0 rows affected, got %d", rowsAffected)
-	}
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, rowsAffected)
 }
 
 func TestTable_QueryManyIn(t *testing.T) {
@@ -697,20 +576,14 @@ func TestTable_QueryManyIn(t *testing.T) {
 
 	for _, f := range foos {
 		err := table.Insert(ctx, f)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	condition := In("$.id", 1, 2, 3)
 
 	vals, err := table.QueryMany(ctx, condition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(vals) != 2 {
-		t.Errorf("expected 2 got %d", len(vals))
-	}
+	require.NoError(t, err)
+	assert.Len(t, vals, 2)
 }
 
 func TestTable_QueryManyContainsAll(t *testing.T) {
@@ -740,21 +613,15 @@ func TestTable_QueryManyContainsAll(t *testing.T) {
 
 	for _, f := range foos {
 		err := table.Insert(ctx, f)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	// condition := ContainsAll("$.list", "two", "three")
 	condition := ContainsAll("$.list", "two")
 
 	vals, err := table.QueryMany(ctx, condition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(vals) != 2 {
-		t.Errorf("expected 2 got %d", len(vals))
-	}
+	require.NoError(t, err)
+	assert.Len(t, vals, 2)
 }
 
 func TestTable_QueryManyContainsAny(t *testing.T) {
@@ -784,20 +651,14 @@ func TestTable_QueryManyContainsAny(t *testing.T) {
 
 	for _, f := range foos {
 		err := table.Insert(ctx, f)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	condition := ContainsAny("$.list", "one", "two", "three")
 
 	vals, err := table.QueryMany(ctx, condition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(vals) != 3 {
-		t.Errorf("expected 3 got %d", len(vals))
-	}
+	require.NoError(t, err)
+	assert.Len(t, vals, 3)
 }
 
 func TestTable_QueryManyContains(t *testing.T) {
@@ -827,26 +688,18 @@ func TestTable_QueryManyContains(t *testing.T) {
 
 	for _, f := range foos {
 		err := table.Insert(ctx, f)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	condition := Contains("$.list", "one")
 
 	vals, err := table.QueryMany(ctx, condition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(vals) != 1 {
-		t.Errorf("expected 1 got %d", len(vals))
-	}
+	require.NoError(t, err)
+	assert.Len(t, vals, 1)
 }
 
 func TestDeleteFromTables(t *testing.T) {
 	t.Parallel()
-
-	var err error
 
 	ctx := context.Background()
 	store := helperOpenStore(t)
@@ -860,51 +713,29 @@ func TestDeleteFromTables(t *testing.T) {
 	itemOne := IDOne{ID: id}
 	itemTwo := IDTwo{ID: id}
 
-	err = tableOne.Insert(ctx, itemOne)
-	if err != nil {
-		t.Fatal(err)
-	}
+	err := tableOne.Insert(ctx, itemOne)
+	require.NoError(t, err)
 	err = tableTwo.Insert(ctx, itemTwo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	tableOneItems, err := tableOne.All(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tableOneItems) != 1 {
-		t.Fatalf("expected 1 got %d", len(tableOneItems))
-	}
+	require.NoError(t, err)
+	require.Len(t, tableOneItems, 1)
 
 	tableTwoItems, err := tableTwo.All(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tableTwoItems) != 1 {
-		t.Fatalf("expected 1 got %d", len(tableTwoItems))
-	}
+	require.NoError(t, err)
+	require.Len(t, tableTwoItems, 1)
 
 	_, err = tableTwo.Delete(ctx, Equal("$.id", id))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	tableOneItems, err = tableOne.All(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tableOneItems) != 1 {
-		t.Fatalf("expected 1 got %d", len(tableOneItems))
-	}
+	require.NoError(t, err)
+	assert.Len(t, tableOneItems, 1)
 
 	tableTwoItems, err = tableTwo.All(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tableTwoItems) != 0 {
-		t.Fatalf("expected 0 got %d", len(tableTwoItems))
-	}
+	require.NoError(t, err)
+	assert.Len(t, tableTwoItems, 0)
 }
 
 type ParentStruct struct {
@@ -917,8 +748,6 @@ type ParentStruct struct {
 func TestUpdateWithEmbeddedStruct(t *testing.T) {
 	t.Parallel()
 
-	var err error
-
 	ctx := context.Background()
 	store := helperOpenStore(t)
 	defer helperCloseStore(t, store)
@@ -929,29 +758,18 @@ func TestUpdateWithEmbeddedStruct(t *testing.T) {
 		ID: "some-id",
 	}
 
-	err = table.Insert(ctx, obj)
-	if err != nil {
-		t.Fatal(err)
-	}
+	err := table.Insert(ctx, obj)
+	require.NoError(t, err)
 
 	obj.Child.Value = 13
 
 	err = table.Update(ctx, Equal("$.ID", "some-id"), obj)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	res, err := table.QueryOne(ctx, Equal("$.ID", "some-id"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res == nil {
-		t.Fatal("expected result got nil")
-	}
-
-	if res.Child.Value != 13 {
-		t.Fatalf("expected 13 got %d", res.Child.Value)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, 13, res.Child.Value)
 }
 
 func TestTable_CreateIndexes(t *testing.T) {
@@ -964,11 +782,6 @@ func TestTable_CreateIndexes(t *testing.T) {
 	table := helperTable[Foo](ctx, t, store)
 
 	names, err := table.CreateIndexes(ctx, []string{"$.name"}, []string{"$.id"})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(names) != 2 {
-		t.Fatalf("expected 2 index names, got %d", len(names))
-	}
+	require.NoError(t, err)
+	assert.Len(t, names, 2)
 }
