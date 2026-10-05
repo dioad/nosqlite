@@ -374,7 +374,7 @@ func (n *Table[T]) CreateIndex(ctx context.Context, fields ...string) (string, e
 // Delete removes items from the table that match the given clause.
 // Returns the number of rows deleted and any error.
 func (n *Table[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
-	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
+	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds only "?" placeholders bound via clause.Values(), except for a field path that passes validIndexField, which is interpolated as a validated literal matching CreateIndex's index expression text (see jsonField) rather than unsanitized caller data
 	result, err := n.store.db.ExecContext(ctx, deleteStatement, clause.Values()...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete data: %w", err)
@@ -410,7 +410,7 @@ func (n *Table[T]) Insert(ctx context.Context, data T) error {
 func (n *Table[T]) QueryOne(ctx context.Context, clause Clause) (*T, error) {
 	var data string
 
-	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s LIMIT 1", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
+	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s LIMIT 1", "SELECT", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds only "?" placeholders bound via clause.Values(), except for a field path that passes validIndexField, which is interpolated as a validated literal matching CreateIndex's index expression text (see jsonField) rather than unsanitized caller data
 	values := clause.Values()
 	row := n.store.db.QueryRowContext(ctx, queryStatement, values...)
 	err := row.Scan(&data)
@@ -504,7 +504,7 @@ func (n *Table[T]) UpdateWithCount(ctx context.Context, clause Clause, newVal T)
 		return 0, fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds no caller data at all, only "?" placeholders, with every field path and value passed as a bound parameter via clause.Values()
+	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", n.Name, clause.Clause()) // #nosec G201 -- n.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds only "?" placeholders bound via clause.Values(), except for a field path that passes validIndexField, which is interpolated as a validated literal matching CreateIndex's index expression text (see jsonField) rather than unsanitized caller data
 	params := append([]any{string(b)}, clause.Values()...)
 	result, err := n.store.db.ExecContext(ctx, updateStatement, params...)
 	if err != nil {

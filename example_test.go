@@ -106,5 +106,5 @@ func ExampleAnd() {
 
 	fmt.Println(clause.Clause())
 	// Output:
-	// ((data->>? = ?) OR ((data->>? = ?) AND (data->>? > ?)))
+	// ((data->>'status' = ?) OR ((data->>'status' = ?) AND (data->>'priority' > ?)))
 }

@@ -2,7 +2,9 @@ package nosqlite
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	_ "github.com/glebarez/go-sqlite/compat"
@@ -249,6 +251,51 @@ func TestTable_CreateIndex(t *testing.T) {
 		table.Name, name,
 	).Scan(&got)
 	require.NoError(t, err, "expected index %q to exist", name)
+}
+
+// TestTable_CreateIndex_QueryUsesIndex is a regression test for jsonField:
+// a query clause built from a field that satisfies validIndexField must
+// interpolate that field literally, using the exact expression text
+// CreateIndex emits, so SQLite's planner recognizes the index rather than
+// falling back to a full table scan. A clause that instead bound the field
+// as a parameter (data->>?) would be semantically equivalent but would
+// never match the index, since SQLite matches expression indexes by
+// literal expression text.
+func TestTable_CreateIndex_QueryUsesIndex(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	table := helperTable[Foo](ctx, t, store)
+
+	_, err := table.CreateIndex(ctx, "$.name")
+	require.NoError(t, err)
+
+	for i := range 50 {
+		require.NoError(t, table.Insert(ctx, Foo{Name: fmt.Sprintf("name-%d", i)}))
+	}
+
+	clause := Equal("$.name", "name-7")
+	queryPlan := fmt.Sprintf("EXPLAIN QUERY PLAN SELECT data FROM `%s` WHERE %s", table.Name, clause.Clause()) // #nosec G201 -- table.Name is derived from the Go type name via tableName[T](); clause.Clause() embeds only "?" placeholders bound via clause.Values(), except for a field path that passes validIndexField, which is interpolated as a validated literal (see jsonField) rather than unsanitized caller data
+
+	rows, err := store.db.QueryContext(ctx, queryPlan, clause.Values()...)
+	require.NoError(t, err)
+	defer func() { _ = rows.Close() }()
+
+	var plan strings.Builder
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		require.NoError(t, rows.Scan(&id, &parent, &notused, &detail))
+		plan.WriteString(detail)
+		plan.WriteString("\n")
+	}
+	require.NoError(t, rows.Err())
+
+	assert.Contains(t, plan.String(), "USING INDEX", "expected the $.name index to be used, got plan:\n"+plan.String())
 }
 
 // TestTable_CreateIndex_RejectsInvalidField is a regression test: CreateIndex
