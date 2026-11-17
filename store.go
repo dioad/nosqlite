@@ -217,9 +217,21 @@ func newStoreWithDB(db *sql.DB, cfg storeConfig) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
-// Ping verifies the connection to the database is still alive.
-func (s *Store) Ping() error {
-	return s.db.PingContext(context.Background())
+// Ping verifies the connection to the database is still alive, giving up when
+// ctx is done. It is a connectivity check, not a query against any table. If
+// ctx is already cancelled or its deadline has passed, the returned error wraps
+// ctx.Err().
+//
+// Cancellation is honoured both while waiting for a pooled connection and
+// while the ping is in flight: the SQLite driver implements Ping as
+// "select 1" and interrupts the running statement (sqlite3_interrupt) when ctx
+// is done, so a caller does not need a goroutine to abandon a stuck ping.
+func (s *Store) Ping(ctx context.Context) error {
+	if err := s.db.PingContext(ctx); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return nil
 }
 
 // Close closes the underlying database connection.

@@ -22,7 +22,7 @@ func TestNewStore(t *testing.T) {
 		require.NoError(t, store.Close())
 	}()
 
-	assert.NoError(t, store.Ping())
+	assert.NoError(t, store.Ping(context.Background()))
 }
 
 func TestNewStore_Defaults(t *testing.T) {
@@ -100,6 +100,48 @@ func TestNewStoreWithDB_WALAutoCheckpoint(t *testing.T) {
 	defer helperCloseStore(t, store)
 
 	assertPragma(t, store, "wal_autocheckpoint", "0")
+}
+
+func TestStore_Ping_CancelledContext(t *testing.T) {
+	t.Parallel()
+
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := store.Ping(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestStore_Ping_DeadlineWhileConnectionBusy(t *testing.T) {
+	t.Parallel()
+
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	// With a single pooled connection held by an open transaction, Ping has
+	// to wait for a connection and must give up when its deadline passes.
+	store.db.SetMaxOpenConns(1)
+
+	tx, err := store.Begin(context.Background())
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, tx.Rollback())
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	err = store.Ping(ctx)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), 2*time.Second)
 }
 
 func assertPragma(t *testing.T, store *Store, pragma, want string) {
