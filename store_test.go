@@ -166,3 +166,24 @@ func TestStore_Begin(t *testing.T) {
 
 	assert.NoError(t, tx.Rollback(), "Rollback failed")
 }
+
+func TestTransaction_Exec_CancelledContext(t *testing.T) {
+	t.Parallel()
+
+	store := helperOpenStore(t)
+	defer helperCloseStore(t, store)
+
+	tx, err := store.Begin(context.Background())
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, tx.Rollback())
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = tx.Exec(ctx, "SELECT 1")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}

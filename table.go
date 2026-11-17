@@ -66,7 +66,7 @@ func (t *TableWithTx[T]) Insert(ctx context.Context, data T) error {
 	}
 
 	insertStatement := fmt.Sprintf("%s `%s` (data) VALUES (?)", "INSERT INTO", t.name)
-	_, err = t.tx.ExecContext(ctx, insertStatement, string(b))
+	_, err = t.tx.Exec(ctx, insertStatement, string(b))
 	if err != nil {
 		return fmt.Errorf("failed to insert data: %w", err)
 	}
@@ -80,7 +80,7 @@ func (t *TableWithTx[T]) QueryOne(ctx context.Context, clause Clause) (*T, error
 
 	queryStatement := fmt.Sprintf("%s data FROM `%s` WHERE %s LIMIT 1", "SELECT", t.name, clause.Clause())
 	values := clause.Values()
-	row := t.tx.QueryRowContext(ctx, queryStatement, values...)
+	row := t.tx.QueryRow(ctx, queryStatement, values...)
 	err := row.Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
 		//nolint:nilnil // (nil, nil) is the documented "no match" contract for QueryOne; a sentinel error would be a breaking API change.
@@ -121,7 +121,7 @@ func (t *TableWithTx[T]) QueryManyWithPagination(ctx context.Context, clause Cla
 
 	queryStatement := paginationQuery(t.name, clause.Clause(), limit, offset)
 
-	rows, err := t.tx.QueryContext(ctx, queryStatement, clause.Values()...)
+	rows, err := t.tx.Query(ctx, queryStatement, clause.Values()...)
 	if err != nil {
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
@@ -172,7 +172,7 @@ func (t *TableWithTx[T]) UpdateWithCount(ctx context.Context, clause Clause, new
 
 	updateStatement := fmt.Sprintf("%s `%s` SET data = ? WHERE %s", "UPDATE", t.name, clause.Clause())
 	params := append([]any{string(b)}, clause.Values()...)
-	result, err := t.tx.ExecContext(ctx, updateStatement, params...)
+	result, err := t.tx.Exec(ctx, updateStatement, params...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to update data: %w", err)
 	}
@@ -198,7 +198,7 @@ func (t *TableWithTx[T]) Update(ctx context.Context, clause Clause, newVal T) er
 // Returns the number of rows deleted and any error.
 func (t *TableWithTx[T]) Delete(ctx context.Context, clause Clause) (int64, error) {
 	deleteStatement := fmt.Sprintf("%s `%s` WHERE %s", "DELETE FROM", t.name, clause.Clause())
-	result, err := t.tx.ExecContext(ctx, deleteStatement, clause.Values()...)
+	result, err := t.tx.Exec(ctx, deleteStatement, clause.Values()...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete data: %w", err)
 	}
@@ -214,7 +214,7 @@ func (t *TableWithTx[T]) Delete(ctx context.Context, clause Clause) (int64, erro
 // Count returns the number of items in the table within the transaction.
 func (t *TableWithTx[T]) Count(ctx context.Context) (uint64, error) {
 	var c uint64
-	count := t.tx.QueryRowContext(ctx, fmt.Sprintf("%s COUNT(*) AS count FROM `%s`", "SELECT", t.name))
+	count := t.tx.QueryRow(ctx, fmt.Sprintf("%s COUNT(*) AS count FROM `%s`", "SELECT", t.name))
 	err := count.Scan(&c)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count rows: %w", err)
