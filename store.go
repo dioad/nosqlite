@@ -150,7 +150,8 @@ func pragmaDSN(cfg storeConfig) string {
 // NewStore creates a new Store with a connection to a SQLite database at the given file path.
 // It also sets some recommended PRAGMAs for performance and concurrency (busy_timeout, synchronous=NORMAL, journal_mode=WAL);
 // use WithBusyTimeout, WithSynchronous, and WithWALAutoCheckpoint to override the tunable ones.
-func NewStore(filePath string, opts ...Option) (*Store, error) {
+// ctx bounds the connection setup, including applying the pragmas.
+func NewStore(ctx context.Context, filePath string, opts ...Option) (*Store, error) {
 	cfg := newStoreConfig(opts)
 
 	dsn := filePath
@@ -165,7 +166,14 @@ func NewStore(filePath string, opts ...Option) (*Store, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	return newStoreWithDB(db, cfg)
+	store, err := newStoreWithDB(ctx, db, cfg)
+	if err != nil {
+		_ = db.Close()
+
+		return nil, err
+	}
+
+	return store, nil
 }
 
 // NewStoreWithDB creates a new Store using an existing *sql.DB connection.
@@ -181,13 +189,13 @@ func NewStore(filePath string, opts ...Option) (*Store, error) {
 // than a PRAGMA and so has no db.Exec equivalent; a db passed in here
 // without it is exposed to the stale-snapshot SQLITE_BUSY races described
 // on fixedDSNParams under concurrent check-then-write transactions.
-func NewStoreWithDB(db *sql.DB, opts ...Option) (*Store, error) {
-	return newStoreWithDB(db, newStoreConfig(opts))
+//
+// ctx bounds applying the pragmas.
+func NewStoreWithDB(ctx context.Context, db *sql.DB, opts ...Option) (*Store, error) {
+	return newStoreWithDB(ctx, db, newStoreConfig(opts))
 }
 
-func newStoreWithDB(db *sql.DB, cfg storeConfig) (*Store, error) {
-	ctx := context.Background()
-
+func newStoreWithDB(ctx context.Context, db *sql.DB, cfg storeConfig) (*Store, error) {
 	// PRAGMA busy_timeout = ...;
 	_, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA busy_timeout = %d", cfg.busyTimeout.Milliseconds()))
 	if err != nil {

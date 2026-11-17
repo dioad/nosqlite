@@ -44,7 +44,7 @@ func helperTempFile(t *testing.T) string {
 func helperOpenStoreWithFile(t *testing.T, fileName string) *Store {
 	t.Helper()
 
-	store, err := NewStore(fileName)
+	store, err := NewStore(context.Background(), fileName)
 	require.NoError(t, err)
 
 	return store

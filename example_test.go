@@ -47,7 +47,7 @@ func runExample() (err error) {
 
 	ctx := context.Background()
 
-	store, err := nosqlite.NewStore(filepath.Join(dir, "users.db"))
+	store, err := nosqlite.NewStore(context.Background(), filepath.Join(dir, "users.db"))
 	if err != nil {
 		return err
 	}

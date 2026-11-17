@@ -15,7 +15,7 @@ func TestNewStore(t *testing.T) {
 
 	fileName := helperTempFile(t)
 
-	store, err := NewStore(fileName)
+	store, err := NewStore(context.Background(), fileName)
 	require.NoError(t, err)
 
 	defer func() {
@@ -28,7 +28,7 @@ func TestNewStore(t *testing.T) {
 func TestNewStore_Defaults(t *testing.T) {
 	t.Parallel()
 
-	store, err := NewStore(helperTempFile(t))
+	store, err := NewStore(context.Background(), helperTempFile(t))
 	require.NoError(t, err)
 	defer helperCloseStore(t, store)
 
@@ -39,7 +39,7 @@ func TestNewStore_Defaults(t *testing.T) {
 func TestNewStore_Options(t *testing.T) {
 	t.Parallel()
 
-	store, err := NewStore(helperTempFile(t),
+	store, err := NewStore(context.Background(), helperTempFile(t),
 		WithBusyTimeout(250*time.Millisecond),
 		WithSynchronous(SynchronousFull),
 	)
@@ -56,7 +56,7 @@ func TestNewStoreWithDB_Options(t *testing.T) {
 	db, err := sql.Open("sqlite3", helperTempFile(t))
 	require.NoError(t, err)
 
-	store, err := NewStoreWithDB(db, WithBusyTimeout(250*time.Millisecond))
+	store, err := NewStoreWithDB(context.Background(), db, WithBusyTimeout(250*time.Millisecond))
 	require.NoError(t, err)
 	defer helperCloseStore(t, store)
 
@@ -80,7 +80,7 @@ func TestNewStore_WALAutoCheckpoint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			store, err := NewStore(helperTempFile(t), tt.opts...)
+			store, err := NewStore(context.Background(), helperTempFile(t), tt.opts...)
 			require.NoError(t, err)
 			defer helperCloseStore(t, store)
 
@@ -95,7 +95,7 @@ func TestNewStoreWithDB_WALAutoCheckpoint(t *testing.T) {
 	db, err := sql.Open("sqlite3", helperTempFile(t))
 	require.NoError(t, err)
 
-	store, err := NewStoreWithDB(db, WithWALAutoCheckpoint(0))
+	store, err := NewStoreWithDB(context.Background(), db, WithWALAutoCheckpoint(0))
 	require.NoError(t, err)
 	defer helperCloseStore(t, store)
 
@@ -186,4 +186,16 @@ func TestTransaction_Exec_CancelledContext(t *testing.T) {
 	_, err = tx.Exec(ctx, "SELECT 1")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestNewStore_CancelledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	store, err := NewStore(ctx, helperTempFile(t))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, store)
 }

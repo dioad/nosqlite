@@ -45,7 +45,7 @@ func main() {
     ctx := context.Background()
 
     // Create a new store
-    store, err := nosqlite.NewStore("users.db")
+    store, err := nosqlite.NewStore(ctx, "users.db")
     if err != nil {
         log.Fatal(err)
     }

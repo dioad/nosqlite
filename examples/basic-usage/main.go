@@ -33,7 +33,7 @@ func main() {
 func run() (err error) {
 	ctx := context.Background()
 
-	store, err := nosqlite.NewStore("basic-usage.db")
+	store, err := nosqlite.NewStore(ctx, "basic-usage.db")
 	if err != nil {
 		return fmt.Errorf("failed to open store: %w", err)
 	}
