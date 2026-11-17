@@ -63,6 +63,45 @@ func TestNewStoreWithDB_Options(t *testing.T) {
 	assertPragma(t, store, "busy_timeout", "250")
 }
 
+func TestNewStore_WALAutoCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		opts []Option
+		want string
+	}{
+		{name: "disabled", opts: []Option{WithWALAutoCheckpoint(0)}, want: "0"},
+		{name: "custom", opts: []Option{WithWALAutoCheckpoint(250)}, want: "250"},
+		{name: "default", want: "1000"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, err := NewStore(helperTempFile(t), tt.opts...)
+			require.NoError(t, err)
+			defer helperCloseStore(t, store)
+
+			assertPragma(t, store, "wal_autocheckpoint", tt.want)
+		})
+	}
+}
+
+func TestNewStoreWithDB_WALAutoCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("sqlite3", helperTempFile(t))
+	require.NoError(t, err)
+
+	store, err := NewStoreWithDB(db, WithWALAutoCheckpoint(0))
+	require.NoError(t, err)
+	defer helperCloseStore(t, store)
+
+	assertPragma(t, store, "wal_autocheckpoint", "0")
+}
+
 func assertPragma(t *testing.T, store *Store, pragma, want string) {
 	t.Helper()
 
